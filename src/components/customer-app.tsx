@@ -22,6 +22,14 @@ const sampleCategories: Category[] = [
 ];
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite) || (lat1 === 0 && lon1 === 0) || (lat2 === 0 && lon2 === 0)) return null;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(lat2 - lat1), dLon = radians(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
 export function CustomerApp() {
   const { width: windowWidth } = useWindowDimensions();
   const bannerWidth = Math.min(windowWidth, 480);
@@ -58,6 +66,8 @@ export function CustomerApp() {
   const [prescriptionAsset, setPrescriptionAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [prescriptionNote, setPrescriptionNote] = useState('');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [doctorConsultations, setDoctorConsultations] = useState<any[]>([]);
+  const [pickupPharmacies, setPickupPharmacies] = useState<any[]>([]);
   const [addressText, setAddressText] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -71,6 +81,15 @@ export function CustomerApp() {
   const go = (next: Page) => { setMenuOpen(false); setHistory((items) => [...items, page]); setPage(next); setNotice(''); };
   const back = () => { setPage(history.at(-1) ?? 'Home'); setHistory((items) => items.slice(0, -1)); setNotice(''); };
   const apiCall = async <T,>(path: string, options?: { method?: string; body?: unknown }) => api<T>(path, options);
+
+  const loadPrescriptionCentre = async () => {
+    const [data, consultations, pharmacies] = await Promise.all([
+      apiCall<any>('/prescription-requests'),
+      apiCall<any>('/consultations'),
+      zoneId ? apiCall<any>(`/pharmacies?zone_id=${zoneId}`) : Promise.resolve({ data: [] }),
+    ]);
+    setPrescriptions(data.data ?? []); setDoctorConsultations(consultations.data ?? []); setPickupPharmacies(pharmacies.data ?? []);
+  };
 
   const loadCart = useCallback(async () => {
     try {
@@ -180,12 +199,18 @@ export function CustomerApp() {
       } else if (next === 'Wallet') {
         const data = await apiCall<any>('/customers/wallet'); setConfig((old: any) => ({ ...old, wallet: data.data ?? data }));
       } else if (next === 'Prescription Centre') {
-        const data = await apiCall<any>('/prescription-requests'); setPrescriptions(data.data ?? []);
+        await loadPrescriptionCentre();
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : `Unable to load ${next.toLowerCase()}.`);
     }
   };
+
+  useEffect(() => {
+    if (!profile || page !== 'Prescription Centre') return;
+    const timer = setInterval(() => { void loadPrescriptionCentre().catch(() => undefined); }, 15000);
+    return () => clearInterval(timer);
+  }, [profile?.id, page, zoneId]);
 
   const addToCart = async (product: Product) => {
     if (!zoneId) { setNotice('Choose your delivery area before adding medicines.'); return; }
@@ -299,6 +324,24 @@ export function CustomerApp() {
     finally { setBusy(false); }
   };
 
+  const sendDoctorPrescriptionToPharmacy = async (consultation: any, pharmacy: any) => {
+    if (!profile) { setNotice('Sign in to request prescription pickup.'); go('Sign in'); return; }
+    try {
+      const result = await apiCall<any>('/prescription-requests', { method: 'POST', body: { consultation_id: Number(consultation.id), pharmacy_id: Number(pharmacy.id) } });
+      const request = result.data ?? result;
+      setPrescriptions((current) => [request, ...current.filter((item) => Number(item.id) !== Number(request.id))]);
+      setNotice('Prescription sent to the selected pharmacy. We will notify you when it is ready for pickup.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send this prescription to the pharmacy.'); }
+  };
+
+  const confirmPrescriptionPickup = async (request: any) => {
+    try {
+      await apiCall(`/prescription-requests/${request.id}/collected`, { method: 'POST', body: {} });
+      setPrescriptions((current) => current.map((item) => Number(item.id) === Number(request.id) ? { ...item, status: 'collected' } : item));
+      setNotice('Pickup confirmed. Thank you.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not confirm pickup.'); }
+  };
+
   const section = (label: string, action?: () => void) => <View style={s.sectionHead}><Text style={s.sectionTitle}>{label}</Text>{action && <Pressable onPress={action}><Text style={s.seeAll}>See all  ›</Text></Pressable>}</View>;
   const primaryButton = (label: string, action: () => void, secondary = false) => <Pressable onPress={action} style={[s.button, secondary && s.buttonOutline]}><Text style={[s.buttonText, secondary && s.buttonTextOutline]}>{label}</Text></Pressable>;
   const empty = (glyph: string, heading: string, copy: string) => <View style={s.empty}><Text style={s.emptyGlyph}>{glyph}</Text><Text style={s.emptyTitle}>{heading}</Text><Text style={s.emptyCopy}>{copy}</Text></View>;
@@ -386,9 +429,21 @@ export function CustomerApp() {
     if (page === 'Saved products') return wishlist.length ? wishlist.map((item) => <View key={item.id} style={s.accountRow}><Text style={s.rowIcon}>♡</Text><Text style={[s.rowTitle, { flex: 1 }]}>{item.name ?? item.product_name}</Text><Text style={s.productPrice}>{money(item.discount_price ?? item.price)}</Text></View>) : empty('♡', 'No saved products yet', 'Save favourite medicines from the product list.');
     if (page === 'Refunds') return orders.length ? orders.map((item) => <View key={item.id} style={s.accountRow}><Text style={s.rowIcon}>↶</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>Order #{item.order_id}</Text><Text style={s.rowSub}>{item.status}</Text></View></View>) : empty('↶', 'No refunds yet', 'Refund requests and their status will appear here.');
     if (page === 'Wallet') return <><View style={s.walletCard}><Text style={s.rowSub}>Available balance</Text><Text style={s.walletAmount}>{money(config?.wallet?.balance)}</Text></View>{empty('◉', 'Wallet activity', 'Wallet transactions will appear here.')}</>;
-    if (page === 'Prescription Centre') return <><View style={s.featureBanner}><Text style={s.featureEyebrow}>PHARMACIST REVIEW</Text><Text style={s.featureTitle}>Upload for a fair quote</Text><Text style={s.featureCopy}>A pharmacist will check your prescription and send a quote for your approval before ordering.</Text></View>{!zoneId && empty('⌖', 'Choose your service area first', 'Select your delivery area before sending a prescription.')}
-      <View style={s.formCard}><Text style={s.fieldLabel}>Prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note or medicine preference (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
-      {prescriptions.length ? <>{section('My prescription requests')}{prescriptions.map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : empty('Rx', 'No prescription requests yet', 'Uploaded prescriptions and pharmacist quotes will appear here.')}</>;
+    if (page === 'Prescription Centre') return <>
+      <View style={s.featureBanner}><Text style={s.featureEyebrow}>DOCTOR PRESCRIPTIONS</Text><Text style={s.featureTitle}>Get prescribed medicines ready for pickup</Text><Text style={s.featureCopy}>Choose an approved pharmacy in your service area. The pharmacist will check stock and notify you when everything is ready.</Text></View>
+      {doctorConsultations.filter((visit) => Array.isArray(visit.prescription_items) && visit.prescription_items.length > 0).map((visit) => {
+        const request = prescriptions.find((item) => Number(item.consultation_id) === Number(visit.id) && item.prescription_source === 'doctor');
+        const nearbyPharmacies = [...pickupPharmacies].map((pharmacy) => ({ ...pharmacy, distance_km: distanceKm(Number(visit.doctor_latitude), Number(visit.doctor_longitude), Number(pharmacy.latitude), Number(pharmacy.longitude)) })).sort((a, b) => (a.distance_km ?? Number.MAX_VALUE) - (b.distance_km ?? Number.MAX_VALUE));
+        return <View key={`doctor-prescription-${visit.id}`} style={s.formCard}>
+          <Text style={s.sectionTitle}>Dr. {visit.doctor_name || 'Your doctor'} · Consultation #{visit.id}</Text>
+          {visit.prescription_items.map((medicine: any, index: number) => <Text key={`${visit.id}-medicine-${index}`} style={s.rowSub}>{medicine.name}{medicine.strength ? ` · ${medicine.strength}` : ''}{medicine.dosage ? ` · ${medicine.dosage}` : ''}{medicine.frequency ? ` · ${medicine.frequency}` : ''}{medicine.duration ? ` · ${medicine.duration}` : ''}{medicine.instructions ? ` · ${medicine.instructions}` : ''}</Text>)}
+          {visit.prescription_note ? <Text style={s.rowSub}>{visit.prescription_note}</Text> : null}
+          {request ? <><Text style={s.productPrice}>{String(request.status || 'assigned').replaceAll('_', ' ')}</Text><Text style={s.rowSub}>{request.pharmacy_name || 'Selected pharmacy'} · {request.pharmacy_address_line || request.pharmacy_address || ''} {request.pharmacy_city || ''}</Text>{request.pickup_code ? <Text style={s.rowTitle}>Pickup code · {request.pickup_code}</Text> : null}{request.status === 'ready_for_pickup' ? primaryButton('I collected these medicines', () => void confirmPrescriptionPickup(request)) : null}</> : <>{section('Choose a pharmacy for pickup')}{nearbyPharmacies.length ? nearbyPharmacies.map((pharmacy) => <Pressable key={pharmacy.id} onPress={() => void sendDoctorPrescriptionToPharmacy(visit, pharmacy)} style={s.accountRow}><View style={{ flex: 1 }}><Text style={s.rowTitle}>{pharmacy.business_name || pharmacy.name}{pharmacy.distance_km !== null ? ` · ${pharmacy.distance_km.toFixed(1)} km from clinic` : ''}</Text><Text style={s.rowSub}>{pharmacy.address_line || pharmacy.address || ''} {pharmacy.city || ''} {pharmacy.pincode || ''}</Text><Text style={s.rowSub}>{pharmacy.opening_hours || ''}</Text></View><Text style={s.seeAll}>Send Rx ›</Text></Pressable>) : empty('⌖', 'No approved pharmacies in this area', 'Choose another service area or contact support.')}</>}
+        </View>;
+      })}
+      <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
+      {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
+    </>;
     if (page === 'Health log') return empty('▤', 'Health records', 'Health records are not available in the connected customer API yet.');
     if (page === 'Appearance') return <View style={s.formCard}>{['Use device setting','Light','Dark'].map((item) => <Pressable key={item} onPress={() => setAppearance(item)} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
     if (page === 'Help and support') return <View style={s.formCard}><Text style={s.formTitle}>How can we help?</Text><TextInput value={supportSubject} onChangeText={setSupportSubject} placeholder="Subject" placeholderTextColor={C.muted} style={s.input} /><TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Describe your issue" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton('Send support request', async () => { try { await apiCall('/support', { method: 'POST', body: { subject: supportSubject, message: supportMessage } }); setSupportSubject(''); setSupportMessage(''); setNotice('Your request was sent to support.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Support request failed.'); } })}</View>;
