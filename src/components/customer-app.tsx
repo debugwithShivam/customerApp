@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
 
 type Page = 'Home' | 'Categories' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
@@ -11,7 +12,8 @@ type Category = { id: number; name: string; image_full_url?: string };
 type Product = { id: number; name: string; description?: string; unit?: string; price: number; discount_price?: number | null; stock: number; medicine_type?: string; category_name?: string; thumbnail_full_url?: string };
 type Banner = { id: number; title?: string; subtitle?: string; image_full_url?: string; action_text?: string };
 type CartItem = { id: number; product_id: number; name: string; quantity: number; price: number; unit?: string; thumbnail_full_url?: string; stock?: number };
-type Zone = { id: number; name: string; city?: string; state?: string };
+type Zone = { id: number; name: string; city?: string; state?: string; pincode?: string; latitude?: number | string; longitude?: number | string };
+type LocationChoice = MapPin & { address: string; pincode?: string; city?: string };
 type Summary = { subtotal: number; medicine_discount: number; coupon_discount: number; total_discount: number; tax_total: number; delivery_charge: number; platform_fee: number; extra_discount_threshold: number; total: number; items_count: number };
 type Profile = { id: number; name: string; phone: string; email?: string };
 
@@ -36,6 +38,12 @@ export function CustomerApp() {
   const [page, setPage] = useState<Page>('Home');
   const [history, setHistory] = useState<Page[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationChoices, setLocationChoices] = useState<LocationChoice[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<LocationChoice | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationNotice, setLocationNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [configMessage, setConfigMessage] = useState('');
@@ -141,13 +149,14 @@ export function CustomerApp() {
       }
       setBusy(true);
       try {
-        const [settings, cats] = await Promise.all([
+        const [settings, cats, zoneResponse] = await Promise.all([
           apiCall<any>('/config'),
           apiCall<{ data?: Category[] }>('/categories'),
+          apiCall<{ data?: Zone[] }>('/api/v1/zones'),
         ]);
         if (!active) return;
         setConfig(settings);
-        const activeZones = (settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
+        const activeZones = (zoneResponse.data?.length ? zoneResponse.data : settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
         setZones(activeZones);
         setCategories((cats.data ?? []).map((category) => ({ ...category, id: Number(category.id) })));
         const initialZone = activeZones.length === 1 ? activeZones[0].id : null;
@@ -204,6 +213,45 @@ export function CustomerApp() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : `Unable to load ${next.toLowerCase()}.`);
     }
+  };
+
+  const searchLocations = async () => {
+    if (locationQuery.trim().length < 3) { setLocationNotice('Type at least 3 characters of an address, area, or PIN code.'); return; }
+    setLocationBusy(true); setLocationNotice('');
+    try {
+      const result = await apiCall<{ data?: LocationChoice[] }>('/api/v1/zones/search', { method: 'POST', body: { query: locationQuery.trim() } });
+      setLocationChoices(result.data ?? []);
+      if (!result.data?.length) setLocationNotice('No matching addresses found. Try a nearby landmark or PIN code.');
+    } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not search for that address.'); }
+    finally { setLocationBusy(false); }
+  };
+
+  const selectMapPin = (pin: MapPin) => {
+    const choice = { ...pin, address: `${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}` };
+    setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Pin selected. Add or search an address, then use this location.');
+  };
+
+  const applySelectedLocation = async () => {
+    if (!selectedLocation) { setLocationNotice('Search for an address or tap the map to place a pin first.'); return; }
+    setLocationBusy(true); setLocationNotice('Checking delivery coverage…');
+    try {
+      let details: LocationChoice = selectedLocation;
+      try {
+        const reverse = await apiCall<{ data?: { address?: string; pincode?: string; city?: string } }>('/api/v1/zones/reverse-geocode', { method: 'POST', body: { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude } });
+        details = { ...selectedLocation, ...reverse.data, address: reverse.data?.address || selectedLocation.address };
+      } catch { /* Keep the manually entered or map-pin address if reverse lookup is unavailable. */ }
+      const resolution = await apiCall<{ data?: { zone?: Zone | null; serviceable?: boolean } }>('/api/v1/zones/resolve', { method: 'POST', body: { latitude: details.latitude, longitude: details.longitude, pincode: details.pincode, city: details.city } });
+      setSelectedLocation(details); setLocationQuery(details.address); setAreaPickerOpen(false); setLocationChoices([]); setNotice('');
+      if (resolution.data?.zone) {
+        const zone = { ...resolution.data.zone, id: Number(resolution.data.zone.id) };
+        setZones((current) => current.some((item) => item.id === zone.id) ? current : [...current, zone]);
+        setZoneId(zone.id); setRefreshKey((value) => value + 1);
+      } else {
+        setZoneId(null);
+        setNotice('Location saved, but delivery is not available there yet. Please contact the admin to add this area.');
+      }
+    } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not check delivery coverage.'); }
+    finally { setLocationBusy(false); }
   };
 
   useEffect(() => {
@@ -365,7 +413,7 @@ export function CustomerApp() {
   const homeScreen = () => <>
     {configMessage ? <View style={s.configBanner}><Text style={s.configTitle}>Backend connection ready to configure</Text><Text style={s.configText}>{configMessage}</Text></View> : null}
     {notice ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
-    <Pressable onPress={() => setMenuOpen(true)} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text style={s.locationValue}>{zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Choose your delivery service area" onPress={() => { const currentZone = zones.find((zone) => zone.id === zoneId); if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) setSelectedLocation({ latitude: Number(currentZone.latitude), longitude: Number(currentZone.longitude), address: currentZone.name, city: currentZone.city, pincode: currentZone.pincode }); setLocationNotice(''); setAreaPickerOpen(true); }} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
     <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>⌁</Text></View>
     <View style={s.serviceGrid}>{serviceCard('✚','Medicines','Order health essentials','Categories','#0a4542')}{serviceCard('⚕','Consult a doctor','Talk to a specialist','Consult a Doctor','#123c50')}{serviceCard('⚗','Lab tests','Book tests at home','Lab Tests','#362d5b')}{serviceCard('⌂','Diagnostics','Browse diagnostic providers','Lab Tests','#1c4a38')}</View>
     {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
@@ -464,6 +512,24 @@ export function CustomerApp() {
       <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home','Categories','Medical Orders','My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
       {profile ? <Pressable onPress={() => { void clearLoginToken(); setProfile(null); setMenuOpen(false); setNotice('Signed out.'); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign out</Text></Pressable> : <Pressable onPress={() => { go('Sign in'); setMenuOpen(false); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign in / Create account</Text></Pressable>}
       <Text style={s.menuFooter}>{config?.app_name ?? 'Amedix Meds'}{backendUrl() ? '\nConnected API: ' + new URL(backendUrl()).host : ''}</Text></View></View>}
+    {areaPickerOpen && <View style={s.areaPickerOverlay}>
+      <Pressable accessibilityLabel="Close area picker" onPress={() => setAreaPickerOpen(false)} style={s.areaPickerScrim} />
+      <View style={s.areaPickerSheet}>
+        <View style={s.areaPickerHeader}>
+          <View><Text style={s.areaPickerTitle}>Choose your location</Text><Text style={s.areaPickerCopy}>Type an address or tap the Google map to place a pin.</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setAreaPickerOpen(false)}><Text style={s.closeMenu}>X</Text></Pressable>
+        </View>
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.areaPickerContent}>
+          <TextInput value={locationQuery} onChangeText={(value) => { setLocationQuery(value); setLocationChoices([]); }} onSubmitEditing={() => void searchLocations()} placeholder="Address, area, landmark, or PIN code" placeholderTextColor={C.muted} style={s.input} returnKeyType="search" />
+          {primaryButton(locationBusy ? 'Searching?' : 'Search address', () => void searchLocations())}
+          {locationChoices.map((choice, index) => <Pressable key={index} onPress={() => { setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Address selected. Confirm it below.'); }} style={s.areaPickerItem}><Text style={s.locationPin}>Location</Text><Text style={[s.menuItemText, { flex: 1 }]}>{choice.address}</Text><Text style={s.arrow}>{selectedLocation?.latitude === choice.latitude && selectedLocation?.longitude === choice.longitude ? '?' : '?'}</Text></Pressable>)}
+          <LocationMap center={selectedLocation ?? (() => { const z = zones.find((item) => item.id === zoneId); return z?.latitude && z.longitude ? { latitude: Number(z.latitude), longitude: Number(z.longitude) } : { latitude: 28.6139, longitude: 77.2090 }; })()} selected={selectedLocation} onSelect={selectMapPin} />
+          {locationNotice ? <Text style={s.locationNotice}>{locationNotice}</Text> : null}
+          {zones.length === 0 ? <Text style={s.locationCoverageNote}>No delivery areas are configured yet. You can choose a location, but the website admin must enable its area before orders can be placed.</Text> : null}
+          {primaryButton(locationBusy ? 'Checking coverage?' : 'Use this location', () => void applySelectedLocation())}
+        </ScrollView>
+      </View>
+    </View>}
   </SafeAreaView>;
 }
 
@@ -485,4 +551,5 @@ const s = StyleSheet.create({
   cartNudge: { backgroundColor: '#0b4239', borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: '#8ef6cc', fontSize: 17 }, nudgeText: { color: '#d4ffec', fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: '#253033', alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: '#b1bcbe', fontSize: 10 }, summaryValue: { color: '#e8eeee', fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: '#78e4aa' }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: '#123433' }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: '#20272b', color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: '#293135' },
   button: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 10, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#185350' }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 9, marginTop: 3 }, signout: { color: 'white', fontSize: 9, fontWeight: '800' }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: '#e8eeee', fontSize: 10, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 8, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 11, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 8, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 9, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: '#20272b', gap: 8, marginBottom: 7 }, filePickerText: { color: '#dbe3e4', fontSize: 9, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 9, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 10, fontWeight: '700' }, fieldLabel: { color: '#dbe3e4', fontSize: 9, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
   menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: '#0b1113', height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: '#263135' }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: '#78878c', fontSize: 8, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#1b2629' }, menuItemText: { color: '#e0e8e9', fontSize: 10, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: '#20413e', alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 10, fontWeight: '800' }, menuFooter: { color: '#657277', fontSize: 8, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
+  areaPickerOverlay: { ...StyleSheet.absoluteFill, zIndex: 30, justifyContent: 'flex-end' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: '#101719', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: '#f6dcaa', fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: '#bdc7ca', backgroundColor: '#20272b', borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
 });

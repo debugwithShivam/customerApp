@@ -46,7 +46,8 @@ export async function api<T = any>(path: string, options: { method?: string; bod
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
+    const url = path.startsWith('/api/v1/') ? `${BASE_URL}${path}` : `${BASE_URL}${API_PREFIX}${path}`;
+    response = await fetch(url, {
       method: options.method ?? 'GET',
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
