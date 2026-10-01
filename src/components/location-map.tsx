@@ -18,4 +18,17 @@ export function LocationMap({ center, selected, onSelect }: Props) {
   </View>;
 }
 
-const styles = StyleSheet.create({ frame: { height: 210, width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 10, backgroundColor: '#1d292a' }, map: { flex: 1 } });
+const styles = StyleSheet.create(
+  {
+    frame:
+    {
+      height: 210,
+      width: '100%',
+      borderRadius: 14,
+      overflow: 'hidden',
+      marginBottom: 10,
+      backgroundColor: '#1d292a'
+    },
+    map: { flex: 1 }
+  }
+);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
@@ -8,7 +8,11 @@ import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
 
 type Page = 'Home' | 'Categories' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
-type Category = { id: number; name: string; image_full_url?: string };
+type Category = {
+  id: number;
+  name: string;
+  image_full_url?: string
+};
 type Product = { id: number; name: string; description?: string; unit?: string; price: number; discount_price?: number | null; stock: number; medicine_type?: string; category_name?: string; thumbnail_full_url?: string };
 type Banner = { id: number; title?: string; subtitle?: string; image_full_url?: string; action_text?: string };
 type CartItem = { id: number; product_id: number; name: string; quantity: number; price: number; unit?: string; thumbnail_full_url?: string; stock?: number };
@@ -107,8 +111,8 @@ export function CustomerApp() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to load your cart.');
     }
-  // apiCall is intentionally stable for this component lifecycle.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // apiCall is intentionally stable for this component lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query) => {
@@ -137,7 +141,7 @@ export function CustomerApp() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId, query]);
 
   useEffect(() => {
@@ -178,7 +182,7 @@ export function CustomerApp() {
     };
     void start();
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -241,14 +245,14 @@ export function CustomerApp() {
         details = { ...selectedLocation, ...reverse.data, address: reverse.data?.address || selectedLocation.address };
       } catch { /* Keep the manually entered or map-pin address if reverse lookup is unavailable. */ }
       const resolution = await apiCall<{ data?: { zone?: Zone | null; serviceable?: boolean } }>('/api/v1/zones/resolve', { method: 'POST', body: { latitude: details.latitude, longitude: details.longitude, pincode: details.pincode, city: details.city } });
-      setSelectedLocation(details); setLocationQuery(details.address); setAreaPickerOpen(false); setLocationChoices([]); setNotice('');
+      setSelectedLocation(details); setLocationQuery(details.address); setLocationChoices([]); setNotice('');
       if (resolution.data?.zone) {
         const zone = { ...resolution.data.zone, id: Number(resolution.data.zone.id) };
         setZones((current) => current.some((item) => item.id === zone.id) ? current : [...current, zone]);
-        setZoneId(zone.id); setRefreshKey((value) => value + 1);
+        setZoneId(zone.id); setRefreshKey((value) => value + 1); setAreaPickerOpen(false); setLocationNotice('');
       } else {
         setZoneId(null);
-        setNotice('Location saved, but delivery is not available there yet. Please contact the admin to add this area.');
+        setLocationNotice('This location is outside current delivery coverage. The admin must enable this area before orders can be placed.');
       }
     } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not check delivery coverage.'); }
     finally { setLocationBusy(false); }
@@ -302,15 +306,17 @@ export function CustomerApp() {
     if (!addressText.trim() && !addresses.length) { setNotice('Add a delivery address before checkout.'); go('Delivery addresses'); return; }
     setBusy(true);
     try {
-      const payload = await apiCall<any>('/orders/place', { method: 'POST', body: {
-        zone_id: zoneId,
-        address_id: addresses.find((item) => Number(item.is_default) === 1)?.id ?? undefined,
-        customer_name: profile?.name ?? customerName,
-        customer_phone: profile?.phone ?? customerPhone,
-        address: addressText || undefined,
-        payment_method: 'cash_on_delivery',
-        age_confirmed: true,
-      } });
+      const payload = await apiCall<any>('/orders/place', {
+        method: 'POST', body: {
+          zone_id: zoneId,
+          address_id: addresses.find((item) => Number(item.is_default) === 1)?.id ?? undefined,
+          customer_name: profile?.name ?? customerName,
+          customer_phone: profile?.phone ?? customerPhone,
+          address: addressText || undefined,
+          payment_method: 'cash_on_delivery',
+          age_confirmed: true,
+        }
+      });
       setNotice(payload.message ?? 'Your order has been placed.'); setPage('Medical Orders'); setHistory([]); await loadCart();
       const data = await apiCall<any>('/orders'); setOrders(data.data ?? []);
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Checkout could not be completed.'); }
@@ -334,11 +340,13 @@ export function CustomerApp() {
     if (!bookingTime.trim()) { setNotice('Add an appointment date and time.'); return; }
     const lab = appointment.kind === 'lab';
     try {
-      await apiCall(lab ? '/lab-bookings' : '/consultations', { method: 'POST', body: {
-        zone_id: zoneId, customer_name: profile.name, customer_phone: profile.phone, scheduled_at: bookingTime,
-        ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: 'online' }),
-        payment_method: 'cash_on_delivery',
-      } });
+      await apiCall(lab ? '/lab-bookings' : '/consultations', {
+        method: 'POST', body: {
+          zone_id: zoneId, customer_name: profile.name, customer_phone: profile.phone, scheduled_at: bookingTime,
+          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: 'online' }),
+          payment_method: 'cash_on_delivery',
+        }
+      });
       setAppointment(null); setBookingTime(''); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]);
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Booking request could not be sent.'); }
   };
@@ -362,10 +370,12 @@ export function CustomerApp() {
       let base64 = prescriptionAsset.base64 ?? '';
       if (!base64) base64 = await FileSystem.readAsStringAsync(prescriptionAsset.uri, { encoding: 'base64' });
       const mime = prescriptionAsset.mimeType || (prescriptionAsset.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-      const payload = await apiCall<any>('/prescription-requests', { method: 'POST', body: {
-        customer_name: profile.name, customer_phone: profile.phone, zone_id: zoneId,
-        prescription_base64: `data:${mime};base64,${base64}`, file_name: prescriptionAsset.name, note: prescriptionNote,
-      } });
+      const payload = await apiCall<any>('/prescription-requests', {
+        method: 'POST', body: {
+          customer_name: profile.name, customer_phone: profile.phone, zone_id: zoneId,
+          prescription_base64: `data:${mime};base64,${base64}`, file_name: prescriptionAsset.name, note: prescriptionNote,
+        }
+      });
       setPrescriptionAsset(null); setPrescriptionNote(''); setPrescriptions((current) => [payload.data ?? payload, ...current]);
       setNotice('Prescription uploaded. A pharmacist will review it and send a quote.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Prescription upload failed.'); }
@@ -415,11 +425,11 @@ export function CustomerApp() {
     {notice ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <Pressable accessibilityRole="button" accessibilityLabel="Choose your delivery service area" onPress={() => { const currentZone = zones.find((zone) => zone.id === zoneId); if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) setSelectedLocation({ latitude: Number(currentZone.latitude), longitude: Number(currentZone.longitude), address: currentZone.name, city: currentZone.city, pincode: currentZone.pincode }); setLocationNotice(''); setAreaPickerOpen(true); }} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
     <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>⌁</Text></View>
-    <View style={s.serviceGrid}>{serviceCard('✚','Medicines','Order health essentials','Categories','#0a4542')}{serviceCard('⚕','Consult a doctor','Talk to a specialist','Consult a Doctor','#123c50')}{serviceCard('⚗','Lab tests','Book tests at home','Lab Tests','#362d5b')}{serviceCard('⌂','Diagnostics','Browse diagnostic providers','Lab Tests','#1c4a38')}</View>
+    <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', 'Order health essentials', 'Categories', '#0a4542')}{serviceCard('⚕', 'Consult a doctor', 'Talk to a specialist', 'Consult a Doctor', '#123c50')}{serviceCard('⚗', 'Lab tests', 'Book tests at home', 'Lab Tests', '#362d5b')}{serviceCard('⌂', 'Diagnostics', 'Browse diagnostic providers', 'Lab Tests', '#1c4a38')}</View>
     {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
       {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : null}
       <View style={s.promoShade} /><Text style={s.promoBrand}>AMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
-    </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : <Pressable style={[s.promo, { width: bannerWidth - 28 }]} onPress={() => go('Categories')}><Text style={s.promoBrand}>AMEDIX  ·  EVERYDAY WELLNESS</Text><Text style={s.promoTitle}>Good health,{ '\n' }great savings.</Text><Text style={s.promoCopy}>Up to 20% off on your daily essentials</Text><Text style={s.promoCta}>SHOP NOW  →</Text></Pressable>}
+    </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : <Pressable style={[s.promo, { width: bannerWidth - 28 }]} onPress={() => go('Categories')}><Text style={s.promoBrand}>AMEDIX  ·  EVERYDAY WELLNESS</Text><Text style={s.promoTitle}>Good health,{'\n'}great savings.</Text><Text style={s.promoCopy}>Up to 20% off on your daily essentials</Text><Text style={s.promoCta}>SHOP NOW  →</Text></Pressable>}
     {zones.length > 1 && <>{section('Choose your service area')}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
     {section('Shop by category', () => go('Categories'))}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.slice(0, 8).map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); go('Categories'); }} style={s.categoryTile}><Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text><Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
     {section('Featured medicines', () => go('Categories'))}{productCards()}
@@ -442,8 +452,8 @@ export function CustomerApp() {
   const accountScreen = () => <>
     {profile ? <View style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>{(profile.name || 'A').slice(0, 1).toUpperCase()}</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>{profile.name}</Text><Text style={s.profileSub}>{profile.phone}</Text></View><Pressable onPress={() => { void clearLoginToken(); setProfile(null); setNotice('You signed out.'); }}><Text style={s.signout}>Sign out</Text></Pressable></View> : <Pressable onPress={() => go('Sign in')} style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>S</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>Sign in to Amedix</Text><Text style={s.profileSub}>Manage your healthcare in one place</Text></View><Text style={s.arrow}>›</Text></Pressable>}
     <View style={s.accountRows}>{([
-      ['Personal details','▣'],['Medical Orders','▱'],['Delivery addresses','⌖'],['Saved products','♡'],['Refunds','↶'],['Wallet','◉'],['Notifications','♧'],['Prescription Centre','Rx'],['Lab Tests','⚗'],['Consult a Doctor','⚕'],['Health log','▤'],['Help and support','?'],
-    ] as [Page,string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
+      ['Personal details', '▣'], ['Medical Orders', '▱'], ['Delivery addresses', '⌖'], ['Saved products', '♡'], ['Refunds', '↶'], ['Wallet', '◉'], ['Notifications', '♧'], ['Prescription Centre', 'Rx'], ['Lab Tests', '⚗'], ['Consult a Doctor', '⚕'], ['Health log', '▤'], ['Help and support', '?'],
+    ] as [Page, string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
   </>;
 
   const ordersScreen = () => orders.length ? orders.map((order) => <View key={order.id} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text></View><Text style={s.arrow}>›</Text></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
@@ -481,19 +491,27 @@ export function CustomerApp() {
       <View style={s.featureBanner}><Text style={s.featureEyebrow}>DOCTOR PRESCRIPTIONS</Text><Text style={s.featureTitle}>Get prescribed medicines ready for pickup</Text><Text style={s.featureCopy}>Choose an approved pharmacy in your service area. The pharmacist will check stock and notify you when everything is ready.</Text></View>
       {doctorConsultations.filter((visit) => Array.isArray(visit.prescription_items) && visit.prescription_items.length > 0).map((visit) => {
         const request = prescriptions.find((item) => Number(item.consultation_id) === Number(visit.id) && item.prescription_source === 'doctor');
-        const nearbyPharmacies = [...pickupPharmacies].map((pharmacy) => ({ ...pharmacy, distance_km: distanceKm(Number(visit.doctor_latitude), Number(visit.doctor_longitude), Number(pharmacy.latitude), Number(pharmacy.longitude)) })).sort((a, b) => (a.distance_km ?? Number.MAX_VALUE) - (b.distance_km ?? Number.MAX_VALUE));
+        const locationOrigin = selectedLocation ?? (visit.doctor_latitude != null && visit.doctor_longitude != null
+          ? { latitude: Number(visit.doctor_latitude), longitude: Number(visit.doctor_longitude) }
+          : null);
+        const distanceLabel = selectedLocation ? 'from your location' : 'from clinic';
+        const nearbyPharmacies = [...pickupPharmacies].map((pharmacy) => ({
+          ...pharmacy, distance_km: locationOrigin
+            ? distanceKm(Number(locationOrigin.latitude), Number(locationOrigin.longitude), Number(pharmacy.latitude), Number(pharmacy.longitude))
+            : null
+        })).sort((a, b) => (a.distance_km ?? Number.MAX_VALUE) - (b.distance_km ?? Number.MAX_VALUE));
         return <View key={`doctor-prescription-${visit.id}`} style={s.formCard}>
           <Text style={s.sectionTitle}>Dr. {visit.doctor_name || 'Your doctor'} · Consultation #{visit.id}</Text>
           {visit.prescription_items.map((medicine: any, index: number) => <Text key={`${visit.id}-medicine-${index}`} style={s.rowSub}>{medicine.name}{medicine.strength ? ` · ${medicine.strength}` : ''}{medicine.dosage ? ` · ${medicine.dosage}` : ''}{medicine.frequency ? ` · ${medicine.frequency}` : ''}{medicine.duration ? ` · ${medicine.duration}` : ''}{medicine.instructions ? ` · ${medicine.instructions}` : ''}</Text>)}
           {visit.prescription_note ? <Text style={s.rowSub}>{visit.prescription_note}</Text> : null}
-          {request ? <><Text style={s.productPrice}>{String(request.status || 'assigned').replaceAll('_', ' ')}</Text><Text style={s.rowSub}>{request.pharmacy_name || 'Selected pharmacy'} · {request.pharmacy_address_line || request.pharmacy_address || ''} {request.pharmacy_city || ''}</Text>{request.pickup_code ? <Text style={s.rowTitle}>Pickup code · {request.pickup_code}</Text> : null}{request.status === 'ready_for_pickup' ? primaryButton('I collected these medicines', () => void confirmPrescriptionPickup(request)) : null}</> : <>{section('Choose a pharmacy for pickup')}{nearbyPharmacies.length ? nearbyPharmacies.map((pharmacy) => <Pressable key={pharmacy.id} onPress={() => void sendDoctorPrescriptionToPharmacy(visit, pharmacy)} style={s.accountRow}><View style={{ flex: 1 }}><Text style={s.rowTitle}>{pharmacy.business_name || pharmacy.name}{pharmacy.distance_km !== null ? ` · ${pharmacy.distance_km.toFixed(1)} km from clinic` : ''}</Text><Text style={s.rowSub}>{pharmacy.address_line || pharmacy.address || ''} {pharmacy.city || ''} {pharmacy.pincode || ''}</Text><Text style={s.rowSub}>{pharmacy.opening_hours || ''}</Text></View><Text style={s.seeAll}>Send Rx ›</Text></Pressable>) : empty('⌖', 'No approved pharmacies in this area', 'Choose another service area or contact support.')}</>}
+          {request ? <><Text style={s.productPrice}>{String(request.status || 'assigned').replaceAll('_', ' ')}</Text><Text style={s.rowSub}>{request.pharmacy_name || 'Selected pharmacy'} · {request.pharmacy_address_line || request.pharmacy_address || ''} {request.pharmacy_city || ''}</Text>{request.pickup_code ? <Text style={s.rowTitle}>Pickup code · {request.pickup_code}</Text> : null}{request.status === 'ready_for_pickup' ? primaryButton('I collected these medicines', () => void confirmPrescriptionPickup(request)) : null}</> : <>{section('Choose a pharmacy for pickup')}{nearbyPharmacies.length ? nearbyPharmacies.map((pharmacy) => <Pressable key={pharmacy.id} onPress={() => void sendDoctorPrescriptionToPharmacy(visit, pharmacy)} style={s.accountRow}><View style={{ flex: 1 }}><Text style={s.rowTitle}>{pharmacy.business_name || pharmacy.name}{pharmacy.distance_km !== null ? ` · ${pharmacy.distance_km.toFixed(1)} km ${distanceLabel}` : ''}</Text><Text style={s.rowSub}>{pharmacy.address_line || pharmacy.address || ''} {pharmacy.city || ''} {pharmacy.pincode || ''}</Text><Text style={s.rowSub}>{pharmacy.opening_hours || ''}</Text></View><Text style={s.seeAll}>Send Rx ›</Text></Pressable>) : empty('⌖', 'No approved pharmacies in this area', 'Choose another service area or contact support.')}</>}
         </View>;
       })}
       <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
       {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
     </>;
     if (page === 'Health log') return empty('▤', 'Health records', 'Health records are not available in the connected customer API yet.');
-    if (page === 'Appearance') return <View style={s.formCard}>{['Use device setting','Light','Dark'].map((item) => <Pressable key={item} onPress={() => setAppearance(item)} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
+    if (page === 'Appearance') return <View style={s.formCard}>{['Use device setting', 'Light', 'Dark'].map((item) => <Pressable key={item} onPress={() => setAppearance(item)} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
     if (page === 'Help and support') return <View style={s.formCard}><Text style={s.formTitle}>How can we help?</Text><TextInput value={supportSubject} onChangeText={setSupportSubject} placeholder="Subject" placeholderTextColor={C.muted} style={s.input} /><TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Describe your issue" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton('Send support request', async () => { try { await apiCall('/support', { method: 'POST', body: { subject: supportSubject, message: supportMessage } }); setSupportSubject(''); setSupportMessage(''); setNotice('Your request was sent to support.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Support request failed.'); } })}</View>;
     return empty('✚', 'Coming soon', 'This section will be available shortly.');
   };
@@ -501,35 +519,37 @@ export function CustomerApp() {
   const title = page === 'My Account' ? 'My Account' : page === 'Medical Orders' ? 'My Orders' : page === 'Booking' ? 'Booking' : page;
   // Keep the primary navigation limited to the four customer areas. Cart remains
   // available from the bag button so shopping and checkout are still reachable.
-  const navItems: [string, Page, string][] = [['⌂','Home','Home'],['▦','Categories','Categories'],['▱','Medical Orders','Orders'],['◉','My Account','My Account']];
+  const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
 
-  return <SafeAreaView style={s.safe} edges={['top','left','right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
+  return <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
     <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
-    <View style={s.tabs}>{navItems.map(([glyph,label,caption]) => <Pressable key={label} onPress={() => { setMenuOpen(false); setNotice(''); setHistory([]); if (label === 'Medical Orders') void openPage(label); else setPage(label); if (label === 'My Account' && !profile) setAuthMode('login'); }} style={s.tab}><Text style={[s.tabIcon, page === label && s.tabOn]}>{glyph}</Text><Text style={[s.tabLabel, page === label && s.tabOn]}>{caption}</Text></Pressable>)}</View>
+    <View style={s.tabs}>{navItems.map(([glyph, label, caption]) => <Pressable key={label} onPress={() => { setMenuOpen(false); setNotice(''); setHistory([]); if (label === 'Medical Orders') void openPage(label); else setPage(label); if (label === 'My Account' && !profile) setAuthMode('login'); }} style={s.tab}><Text style={[s.tabIcon, page === label && s.tabOn]}>{glyph}</Text><Text style={[s.tabLabel, page === label && s.tabOn]}>{caption}</Text></Pressable>)}</View>
     {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>{zones.length > 0 && <><Text style={s.menuSection}>DELIVERING TO</Text>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setMenuOpen(false); setRefreshKey((value) => value + 1); }} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={[s.menuItemText, zoneId === zone.id && s.seeAll]}>{zone.name}</Text><Text style={s.arrow}>{zone.id === zoneId ? '✓' : '›'}</Text></Pressable>)}</>}
-      <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home','Categories','Medical Orders','My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
+      <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home', 'Categories', 'Medical Orders', 'My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
       {profile ? <Pressable onPress={() => { void clearLoginToken(); setProfile(null); setMenuOpen(false); setNotice('Signed out.'); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign out</Text></Pressable> : <Pressable onPress={() => { go('Sign in'); setMenuOpen(false); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign in / Create account</Text></Pressable>}
       <Text style={s.menuFooter}>{config?.app_name ?? 'Amedix Meds'}{backendUrl() ? '\nConnected API: ' + new URL(backendUrl()).host : ''}</Text></View></View>}
-    {areaPickerOpen && <View style={s.areaPickerOverlay}>
-      <Pressable accessibilityLabel="Close area picker" onPress={() => setAreaPickerOpen(false)} style={s.areaPickerScrim} />
-      <View style={s.areaPickerSheet}>
-        <View style={s.areaPickerHeader}>
-          <View><Text style={s.areaPickerTitle}>Choose your location</Text><Text style={s.areaPickerCopy}>Type an address or tap the Google map to place a pin.</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setAreaPickerOpen(false)}><Text style={s.closeMenu}>X</Text></Pressable>
+    <Modal visible={areaPickerOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setAreaPickerOpen(false)}>
+      <View style={s.areaPickerModalRoot}>
+        <Pressable accessibilityLabel="Close area picker" onPress={() => setAreaPickerOpen(false)} style={s.areaPickerScrim} />
+        <View style={s.areaPickerSheet}>
+          <View style={s.areaPickerHeader}>
+            <View><Text style={s.areaPickerTitle}>Choose your location</Text><Text style={s.areaPickerCopy}>Type an address or tap the Google map to place a pin.</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setAreaPickerOpen(false)}><Text style={s.closeMenu}>X</Text></Pressable>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.areaPickerContent}>
+            <TextInput value={locationQuery} onChangeText={(value) => { setLocationQuery(value); setLocationChoices([]); }} onSubmitEditing={() => void searchLocations()} placeholder="Address, area, landmark, or PIN code" placeholderTextColor={C.muted} style={s.input} returnKeyType="search" />
+            {primaryButton(locationBusy ? 'Searching...' : 'Search address', () => void searchLocations())}
+            {locationChoices.map((choice, index) => <Pressable key={index} onPress={() => { setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Address selected. Confirm it below.'); }} style={s.areaPickerItem}><Text style={s.locationPin}>Location</Text><Text style={[s.menuItemText, { flex: 1 }]}>{choice.address}</Text><Text style={s.arrow}>{selectedLocation?.latitude === choice.latitude && selectedLocation?.longitude === choice.longitude ? 'Selected' : '>'}</Text></Pressable>)}
+            <LocationMap center={selectedLocation ?? (() => { const z = zones.find((item) => item.id === zoneId); return z?.latitude && z.longitude ? { latitude: Number(z.latitude), longitude: Number(z.longitude) } : { latitude: 28.6139, longitude: 77.2090 }; })()} selected={selectedLocation} onSelect={selectMapPin} />
+            {locationNotice ? <Text style={s.locationNotice}>{locationNotice}</Text> : null}
+            {zones.length === 0 ? <Text style={s.locationCoverageNote}>No delivery areas are configured yet. You can choose a location, but the website admin must enable its area before orders can be placed.</Text> : null}
+            {primaryButton(locationBusy ? 'Checking coverage...' : 'Use this location', () => void applySelectedLocation())}
+          </ScrollView>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.areaPickerContent}>
-          <TextInput value={locationQuery} onChangeText={(value) => { setLocationQuery(value); setLocationChoices([]); }} onSubmitEditing={() => void searchLocations()} placeholder="Address, area, landmark, or PIN code" placeholderTextColor={C.muted} style={s.input} returnKeyType="search" />
-          {primaryButton(locationBusy ? 'Searching?' : 'Search address', () => void searchLocations())}
-          {locationChoices.map((choice, index) => <Pressable key={index} onPress={() => { setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Address selected. Confirm it below.'); }} style={s.areaPickerItem}><Text style={s.locationPin}>Location</Text><Text style={[s.menuItemText, { flex: 1 }]}>{choice.address}</Text><Text style={s.arrow}>{selectedLocation?.latitude === choice.latitude && selectedLocation?.longitude === choice.longitude ? '?' : '?'}</Text></Pressable>)}
-          <LocationMap center={selectedLocation ?? (() => { const z = zones.find((item) => item.id === zoneId); return z?.latitude && z.longitude ? { latitude: Number(z.latitude), longitude: Number(z.longitude) } : { latitude: 28.6139, longitude: 77.2090 }; })()} selected={selectedLocation} onSelect={selectMapPin} />
-          {locationNotice ? <Text style={s.locationNotice}>{locationNotice}</Text> : null}
-          {zones.length === 0 ? <Text style={s.locationCoverageNote}>No delivery areas are configured yet. You can choose a location, but the website admin must enable its area before orders can be placed.</Text> : null}
-          {primaryButton(locationBusy ? 'Checking coverage?' : 'Use this location', () => void applySelectedLocation())}
-        </ScrollView>
       </View>
-    </View>}
+    </Modal>
   </SafeAreaView>;
 }
 
@@ -538,10 +558,174 @@ function SummaryLine({ label, value, green = false, strong = false }: { label: s
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: C.bg },
-  header: { height: 50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#152022', gap: 12 }, hamburger: { height: 38, width: 38, borderRadius: 12, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }, hamburgerText: { fontSize: 19, color: C.white }, brand: { color: C.mint, fontWeight: '900', fontSize: 17, letterSpacing: 1, flex: 1 }, brandSub: { color: C.teal, fontSize: 10, letterSpacing: 2 }, headerAction: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }, headerGlyph: { color: C.teal, fontSize: 21 }, back: { width: 28 }, backText: { color: C.white, fontSize: 31, lineHeight: 34 }, headerTitle: { color: C.white, fontSize: 16, fontWeight: '700', flex: 1 }, content: { paddingHorizontal: 14, paddingTop: 11, paddingBottom: 24 },
-  location: { flexDirection: 'row', gap: 9, alignItems: 'center', backgroundColor: C.card, padding: 11, borderRadius: 12, marginBottom: 10 }, locationPin: { color: C.teal, fontSize: 20 }, locationLabel: { color: C.muted, fontSize: 10 }, locationValue: { color: C.white, fontSize: 12, fontWeight: '600', marginTop: 2 }, arrow: { color: '#89969b', fontSize: 21 }, searchBox: { height: 43, flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: '#20292c', marginBottom: 12 }, searchIcon: { fontSize: 22, color: C.muted }, searchInput: { flex: 1, color: C.white, marginLeft: 8, fontSize: 12, paddingVertical: 4 }, searchMic: { color: C.teal, fontSize: 18 },
-  serviceGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 9, marginBottom: 15 }, serviceCard: { width: '49%', minHeight: 72, padding: 10, borderRadius: 14, backgroundColor: C.card, flexDirection: 'row', alignItems: 'center', gap: 8 }, serviceIcon: { width: 34, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' }, serviceGlyph: { color: C.mint, fontSize: 18 }, serviceTitle: { color: C.white, fontSize: 10, fontWeight: '800' }, serviceSub: { color: C.muted, fontSize: 8, marginTop: 4 },
+  safe: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    backgroundColor: C.bg
+  },
+  header: {
+    height: 50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#152022',
+    gap: 12
+
+  },
+  hamburger: {
+    height: 38,
+    width: 38,
+    borderRadius: 12,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center'
+
+  },
+  hamburgerText: {
+    fontSize: 19,
+    color: C.white
+
+  },
+  brand: {
+    color: C.mint,
+    fontWeight: '900',
+    fontSize: 17,
+    letterSpacing: 1, flex: 1
+  },
+  brandSub: {
+    color: C.teal,
+    fontSize: 10,
+    letterSpacing: 2
+  },
+  headerAction: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerGlyph: {
+    color: C.teal,
+    fontSize: 21
+  },
+  back: {
+    width: 28
+  },
+  backText: {
+    color: C.white,
+    fontSize: 31,
+    lineHeight: 34
+  },
+  headerTitle: {
+    color: C.white,
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1
+  },
+  content: {
+    paddingHorizontal: 14,
+    paddingTop: 11,
+    paddingBottom: 24
+  },
+  location: {
+    flexDirection: 'row',
+    gap: 9,
+    alignItems: 'center',
+    backgroundColor: C.card,
+    padding: 11,
+    borderRadius: 12,
+    marginBottom: 10
+  },
+  locationPin: {
+    color: C.teal,
+    fontSize: 20
+
+  },
+  locationLabel: {
+    color: C.muted,
+    fontSize: 10
+
+  },
+  locationValue: {
+    color: C.white,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2
+
+  },
+  arrow: {
+    color: '#89969b',
+    fontSize: 21
+  },
+  searchBox: {
+    height: 43,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.card,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#20292c',
+    marginBottom: 12
+
+  },
+  searchIcon: {
+    fontSize: 22,
+    color: C.muted
+  },
+  searchInput: {
+    flex: 1,
+    color: C.white,
+    marginLeft: 8,
+    fontSize: 12,
+    paddingVertical: 4
+  },
+  searchMic: {
+    color: C.teal,
+    fontSize: 18
+  },
+
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 9,
+    marginBottom: 15
+  },
+  serviceCard: {
+    width: '49%',
+    minHeight: 72,
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: C.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  serviceIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  serviceGlyph: {
+    color: C.mint,
+    fontSize: 18
+  },
+  serviceTitle: {
+    color: C.white,
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  serviceSub: {
+    color: C.muted,
+    fontSize: 8,
+    marginTop: 4
+  },
+
   promo: { width: 452, height: 163, borderRadius: 16, padding: 15, marginBottom: 12, backgroundColor: '#067f77', overflow: 'hidden', justifyContent: 'center' }, bannerScroller: { marginHorizontal: -14 }, promoImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' }, promoShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,25,24,0.42)' }, promoBrand: { color: '#c4fff6', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 }, promoTitle: { color: 'white', fontSize: 22, fontWeight: '900', marginTop: 7, maxWidth: 280 }, promoCopy: { color: '#dcfffa', fontSize: 10, marginTop: 5 }, promoCta: { color: 'white', fontSize: 9, fontWeight: '900', marginTop: 13, letterSpacing: 0.7 }, dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: -7, marginBottom: 13 }, dot: { height: 5, width: 5, backgroundColor: '#415151', borderRadius: 4 }, dotOn: { width: 15, backgroundColor: C.teal },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7, marginBottom: 9 }, sectionTitle: { color: C.white, fontWeight: '800', fontSize: 14 }, seeAll: { color: C.teal, fontSize: 10, fontWeight: '700' }, categoryRow: { gap: 8, paddingBottom: 13 }, categoryTile: { width: 77, minHeight: 78, borderRadius: 13, backgroundColor: C.card, padding: 8, alignItems: 'center', justifyContent: 'center', gap: 6 }, categoryEmoji: { color: C.teal, fontSize: 23 }, categoryText: { color: '#d2dadd', fontSize: 8, fontWeight: '700', textAlign: 'center', lineHeight: 11 }, filterChip: { borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 8 }, filterChipOn: { backgroundColor: '#064d48', borderColor: C.teal }, filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: { color: C.mint }, zoneRow: { gap: 8, paddingBottom: 13 }, zoneChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }, zoneSelected: { borderColor: C.teal, backgroundColor: '#063d3a' }, zoneText: { color: '#bdc7ca', fontSize: 10 }, zoneTextSelected: { color: C.mint },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 }, productCard: { width: '48.5%', backgroundColor: C.card, borderRadius: 14, padding: 9, borderWidth: 1, borderColor: '#1d272a' }, productImage: { height: 102, borderRadius: 10, backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center', marginBottom: 8, position: 'relative' }, productPhoto: { width: '78%', height: '78%' }, productFallback: { color: C.teal, fontSize: 30, fontWeight: '900' }, heart: { position: 'absolute', top: 5, right: 6, height: 27, width: 27, borderRadius: 14, backgroundColor: '#0c1416', alignItems: 'center', justifyContent: 'center' }, heartText: { color: C.mint, fontSize: 19, lineHeight: 22 }, discountBadge: { position: 'absolute', left: 5, top: 6, color: '#052a26', backgroundColor: '#9af5e2', fontSize: 7, fontWeight: '900', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 3 }, productCategory: { color: C.teal, fontSize: 8, fontWeight: '700', marginBottom: 3 }, productName: { color: C.white, fontSize: 11, fontWeight: '800', minHeight: 28 }, productDesc: { color: C.muted, fontSize: 8, marginTop: 4 }, rxNote: { color: '#e5bd80', fontSize: 7, marginTop: 5 }, productFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, productPrice: { color: C.white, fontWeight: '900', fontSize: 12 }, mrp: { color: C.muted, fontSize: 8, marginTop: 3 }, strike: { textDecorationLine: 'line-through' }, addButton: { minWidth: 30, height: 29, paddingHorizontal: 8, backgroundColor: C.tealDark, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }, addButtonText: { color: 'white', fontSize: 17, fontWeight: '800' }, disabled: { backgroundColor: '#454c4e' },
@@ -551,5 +735,5 @@ const s = StyleSheet.create({
   cartNudge: { backgroundColor: '#0b4239', borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: '#8ef6cc', fontSize: 17 }, nudgeText: { color: '#d4ffec', fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: '#253033', alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: '#b1bcbe', fontSize: 10 }, summaryValue: { color: '#e8eeee', fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: '#78e4aa' }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: '#123433' }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: '#20272b', color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: '#293135' },
   button: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 10, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#185350' }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 9, marginTop: 3 }, signout: { color: 'white', fontSize: 9, fontWeight: '800' }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: '#e8eeee', fontSize: 10, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 8, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 11, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 8, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 9, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: '#20272b', gap: 8, marginBottom: 7 }, filePickerText: { color: '#dbe3e4', fontSize: 9, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 9, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 10, fontWeight: '700' }, fieldLabel: { color: '#dbe3e4', fontSize: 9, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
   menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: '#0b1113', height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: '#263135' }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: '#78878c', fontSize: 8, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#1b2629' }, menuItemText: { color: '#e0e8e9', fontSize: 10, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: '#20413e', alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 10, fontWeight: '800' }, menuFooter: { color: '#657277', fontSize: 8, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
-  areaPickerOverlay: { ...StyleSheet.absoluteFill, zIndex: 30, justifyContent: 'flex-end' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: '#101719', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: '#f6dcaa', fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: '#bdc7ca', backgroundColor: '#20272b', borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
+  areaPickerModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'transparent' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: '#101719', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: '#f6dcaa', fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: '#bdc7ca', backgroundColor: '#20272b', borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
 });
