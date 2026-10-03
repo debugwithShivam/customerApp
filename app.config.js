@@ -11,6 +11,11 @@ module.exports = ({ config }) => {
     }
   }
   const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!mapsKey) {
+    throw new Error(
+      'GOOGLE_MAPS_API_KEY is required to build the Android app. Set it in the build environment or customerApp/.env.local.'
+    );
+  }
   const plugins = (config.plugins ?? []).filter((plugin) =>
     (Array.isArray(plugin) ? plugin[0] : plugin) !== 'react-native-maps'
   );
