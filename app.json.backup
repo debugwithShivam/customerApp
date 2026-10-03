@@ -42,9 +42,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "35bcb8ac-8262-4529-bdd2-c8f769a96c4b"
+        "projectId": "eee58970-bda3-4be9-af8b-a400cad3c2dd"
       }
-    },
-    "owner": "harshpandeyxande"
+    }
   }
 }
