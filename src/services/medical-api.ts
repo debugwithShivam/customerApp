@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // Public API origin fallback: EAS remote builds do not receive a developer's
 // untracked .env.local file. EXPO_PUBLIC_API_BASE_URL still overrides this.
-const CONFIGURED_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://lightgoldenrodyellow-okapi-349601.hostingersite.com').trim().replace(/\/+$/, '');
+const CONFIGURED_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://aimedixmeds.com').trim().replace(/\/+$/, '');
 // Android emulators run in a separate network namespace; 10.0.2.2 maps to the host PC.
 const BASE_URL = Platform.OS === 'android'
   ? CONFIGURED_BASE_URL.replace(/^(https?:\/\/)localhost(?=:\d|$)/i, (_match, scheme: string) => `${scheme}10.0.2.2`)
