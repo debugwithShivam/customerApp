@@ -81,6 +81,9 @@ export function CustomerApp() {
   const [prescriptionAsset, setPrescriptionAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [prescriptionNote, setPrescriptionNote] = useState('');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [prescriptionPaymentMethods, setPrescriptionPaymentMethods] = useState<any[]>([]);
+  const [prescriptionPaymentMethod, setPrescriptionPaymentMethod] = useState('cash_on_delivery');
+  const [prescriptionPaymentReference, setPrescriptionPaymentReference] = useState('');
   const [doctorConsultations, setDoctorConsultations] = useState<any[]>([]);
   const [pickupPharmacies, setPickupPharmacies] = useState<any[]>([]);
   const [addressText, setAddressText] = useState('');
@@ -98,12 +101,44 @@ export function CustomerApp() {
   const apiCall = async <T,>(path: string, options?: { method?: string; body?: unknown }) => api<T>(path, options);
 
   const loadPrescriptionCentre = async () => {
-    const [data, consultations, pharmacies] = await Promise.all([
+    const [data, consultations, pharmacies, savedAddresses] = await Promise.all([
       apiCall<any>('/prescription-requests'),
       apiCall<any>('/consultations'),
       zoneId ? apiCall<any>(`/pharmacies?zone_id=${zoneId}`) : Promise.resolve({ data: [] }),
+      apiCall<any>('/customers/addresses'),
     ]);
     setPrescriptions(data.data ?? []); setDoctorConsultations(consultations.data ?? []); setPickupPharmacies(pharmacies.data ?? []);
+    setAddresses(savedAddresses.data ?? []); setPrescriptionPaymentMethods(data.payment_methods ?? []);
+    if (!(data.payment_methods ?? []).some((method: any) => method.id === prescriptionPaymentMethod)) setPrescriptionPaymentMethod((data.payment_methods ?? [])[0]?.id ?? '');
+  };
+
+  const acceptPrescriptionQuote = async (request: any) => {
+    const quoteId = Number(request.quote?.id ?? request.quote_id ?? 0);
+    if (!quoteId) { setNotice('The pharmacy quote is no longer available. Refresh and try again.'); return; }
+    setBusy(true);
+    try {
+      await apiCall(`/prescription-requests/${request.id}/accept-quote`, { method: 'POST', body: { quote_id: quoteId } });
+      await loadPrescriptionCentre(); setNotice('Quote accepted. Review the delivery address and place your medicine order.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not accept this quote.'); }
+    finally { setBusy(false); }
+  };
+
+  const checkoutPrescriptionQuote = async (request: any) => {
+    const savedAddress = addresses.find((item) => Number(item.is_default) === 1) ?? addresses[0];
+    if (!savedAddress && !addressText.trim()) { setNotice('Add a delivery address before placing this medicine order.'); go('Delivery addresses'); return; }
+    if (!prescriptionPaymentMethod) { setNotice('No payment method is currently enabled. Contact the website administrator.'); return; }
+    setBusy(true);
+    try {
+      const result = await apiCall<any>(`/prescription-requests/${request.id}/checkout`, {
+        method: 'POST', body: {
+          address_id: savedAddress?.id, address: savedAddress ? undefined : addressText.trim(),
+          payment_method: prescriptionPaymentMethod, payment_reference: prescriptionPaymentReference.trim(),
+        }
+      });
+      await loadPrescriptionCentre();
+      setNotice(`${result.message ?? 'Medicine order placed.'}${result.order_number ? ` Order ${result.order_number}.` : ''}`);
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not place the medicine order.'); }
+    finally { setBusy(false); }
   };
 
   const loadCart = useCallback(async () => {
@@ -567,6 +602,7 @@ export function CustomerApp() {
           {request ? <><Text style={s.productPrice}>{String(request.status || 'assigned').replaceAll('_', ' ')}</Text><Text style={s.rowSub}>{request.pharmacy_name || 'Selected pharmacy'} · {request.pharmacy_address_line || request.pharmacy_address || ''} {request.pharmacy_city || ''}</Text>{request.pickup_code ? <Text style={s.rowTitle}>Pickup code · {request.pickup_code}</Text> : null}{request.status === 'ready_for_pickup' ? primaryButton('I collected these medicines', () => void confirmPrescriptionPickup(request)) : null}</> : <>{section('Choose a pharmacy for pickup')}{nearbyPharmacies.length ? nearbyPharmacies.map((pharmacy) => <Pressable key={pharmacy.id} onPress={() => void sendDoctorPrescriptionToPharmacy(visit, pharmacy)} style={s.accountRow}><View style={{ flex: 1 }}><Text style={s.rowTitle}>{pharmacy.business_name || pharmacy.name}{pharmacy.distance_km !== null ? ` · ${pharmacy.distance_km.toFixed(1)} km ${distanceLabel}` : ''}</Text><Text style={s.rowSub}>{pharmacy.address_line || pharmacy.address || ''} {pharmacy.city || ''} {pharmacy.pincode || ''}</Text><Text style={s.rowSub}>{pharmacy.opening_hours || ''}</Text></View><Text style={s.seeAll}>Send Rx ›</Text></Pressable>) : empty('⌖', 'No approved pharmacies in this area', 'Choose another service area or contact support.')}</>}
         </View>;
       })}
+      {prescriptions.filter((item) => item.quote).map((item) => <View key={`quote-request-${item.id}`} style={s.formCard}><Text style={s.sectionTitle}>Pharmacy quote - Request #{item.id}</Text><Text style={s.rowSub}>{item.pharmacy_name || 'Assigned pharmacy'} - {String(item.status).replaceAll('_', ' ')}</Text>{item.quote.items?.map((line: any, index: number) => <Text key={`quote-line-${item.id}-${index}`} style={s.rowSub}>{line.medicine_name} x {line.quantity} - {money(Number(line.line_total))}</Text>)}<Text style={s.productPrice}>Total: {money(Number(item.quote.total))}</Text>{item.status === 'quoted' && item.quote.status === 'offered' ? primaryButton(busy ? 'Working...' : 'Accept quote', () => void acceptPrescriptionQuote(item)) : null}{item.status === 'payment_pending' && item.quote.status === 'accepted' ? <>{addresses.length ? <Text style={s.rowSub}>Delivery address - {(addresses.find((address) => Number(address.is_default) === 1) ?? addresses[0]).address}</Text> : <TextInput value={addressText} onChangeText={setAddressText} placeholder="Delivery address, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />}{prescriptionPaymentMethods.map((method: any) => <Pressable key={method.id} onPress={() => setPrescriptionPaymentMethod(method.id)} style={s.choice}><Text style={s.rowIcon}>{prescriptionPaymentMethod === method.id ? 'X' : 'O'}</Text><Text style={s.rowTitle}>{method.name ?? method.label ?? method.id}</Text></Pressable>)}{prescriptionPaymentMethod !== 'cash_on_delivery' ? <TextInput value={prescriptionPaymentReference} onChangeText={setPrescriptionPaymentReference} placeholder="Payment / transaction reference" placeholderTextColor={C.muted} style={s.input} /> : null}{primaryButton(busy ? 'Placing order...' : 'Place medicine order', () => void checkoutPrescriptionQuote(item))}</> : null}{item.order ? <Text style={s.rowTitle}>Order {item.order.order_number} - {String(item.order.order_status || 'pending').replaceAll('_', ' ')}</Text> : null}</View>)}
       <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
       {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
     </>;
@@ -786,10 +822,309 @@ const s = StyleSheet.create({
     marginTop: 4
   },
 
-  promo: { width: 452, height: 163, borderRadius: 16, padding: 15, marginBottom: 12, backgroundColor: '#067f77', overflow: 'hidden', justifyContent: 'center' }, bannerScroller: { marginHorizontal: -14 }, promoImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' }, promoShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,25,24,0.42)' }, promoBrand: { color: '#c4fff6', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 }, promoTitle: { color: 'white', fontSize: 22, fontWeight: '900', marginTop: 7, maxWidth: 280 }, promoCopy: { color: '#dcfffa', fontSize: 10, marginTop: 5 }, promoCta: { color: 'white', fontSize: 9, fontWeight: '900', marginTop: 13, letterSpacing: 0.7 }, dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: -7, marginBottom: 13 }, dot: { height: 5, width: 5, backgroundColor: '#415151', borderRadius: 4 }, dotOn: { width: 15, backgroundColor: C.teal },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7, marginBottom: 9 }, sectionTitle: { color: C.white, fontWeight: '800', fontSize: 14 }, seeAll: { color: C.teal, fontSize: 10, fontWeight: '700' }, reportActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }, reportButton: { borderRadius: 9, borderWidth: 1, borderColor: '#27655f', backgroundColor: '#172423', paddingHorizontal: 12, paddingVertical: 8 }, reportButtonOn: { backgroundColor: '#087f78' }, reportButtonText: { color: C.mint, fontSize: 9, fontWeight: '800' }, categoryRow: { gap: 8, paddingBottom: 13 }, categoryTile: { width: 77, minHeight: 78, borderRadius: 13, backgroundColor: C.card, padding: 8, alignItems: 'center', justifyContent: 'center', gap: 6 }, categoryEmoji: { color: C.teal, fontSize: 23 }, categoryText: { color: '#d2dadd', fontSize: 8, fontWeight: '700', textAlign: 'center', lineHeight: 11 }, filterChip: { borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 8 }, filterChipOn: { backgroundColor: '#064d48', borderColor: C.teal }, filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: { color: C.mint }, zoneRow: { gap: 8, paddingBottom: 13 }, zoneChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }, zoneSelected: { borderColor: C.teal, backgroundColor: '#063d3a' }, zoneText: { color: '#bdc7ca', fontSize: 10 }, zoneTextSelected: { color: C.mint },
-  productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 }, productCard: { width: '48.5%', backgroundColor: C.card, borderRadius: 14, padding: 9, borderWidth: 1, borderColor: '#1d272a' }, productImage: { height: 102, borderRadius: 10, backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center', marginBottom: 8, position: 'relative' }, productPhoto: { width: '78%', height: '78%' }, productFallback: { color: C.teal, fontSize: 30, fontWeight: '900' }, heart: { position: 'absolute', top: 5, right: 6, height: 27, width: 27, borderRadius: 14, backgroundColor: '#0c1416', alignItems: 'center', justifyContent: 'center' }, heartText: { color: C.mint, fontSize: 19, lineHeight: 22 }, discountBadge: { position: 'absolute', left: 5, top: 6, color: '#052a26', backgroundColor: '#9af5e2', fontSize: 7, fontWeight: '900', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 3 }, productCategory: { color: C.teal, fontSize: 8, fontWeight: '700', marginBottom: 3 }, productName: { color: C.white, fontSize: 11, fontWeight: '800', minHeight: 28 }, productDesc: { color: C.muted, fontSize: 8, marginTop: 4 }, rxNote: { color: '#e5bd80', fontSize: 7, marginTop: 5 }, productFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, productPrice: { color: C.white, fontWeight: '900', fontSize: 12 }, mrp: { color: C.muted, fontSize: 8, marginTop: 3 }, strike: { textDecorationLine: 'line-through' }, addButton: { minWidth: 30, height: 29, paddingHorizontal: 8, backgroundColor: C.tealDark, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }, addButtonText: { color: 'white', fontSize: 17, fontWeight: '800' }, disabled: { backgroundColor: '#454c4e' },
-  tabs: { height: 59, borderTopWidth: 1, borderColor: '#20282b', flexDirection: 'row', backgroundColor: '#090e10', justifyContent: 'space-around', paddingTop: 7 }, tab: { flex: 1, alignItems: 'center', gap: 2 }, tabIcon: { color: '#728085', fontSize: 19, lineHeight: 22 }, tabOn: { color: C.teal }, tabLabel: { color: '#879297', fontSize: 8 }, cartBadge: { position: 'absolute', top: -2, right: 18, backgroundColor: C.tealDark, borderRadius: 9, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center' }, cartBadgeText: { color: 'white', fontSize: 8, fontWeight: '800' },
+  promo: {
+    width: 452,
+    height: 163,
+    borderRadius: 16,
+    padding: 15,
+    marginBottom: 12,
+    backgroundColor: '#067f77',
+    overflow: 'hidden'
+    , justifyContent: 'center'
+  },
+  bannerScroller: {
+    marginHorizontal: -14
+  },
+  promoImage: {
+    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%'
+  },
+  promoShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,25,24,0.42)'
+  },
+  promoBrand: {
+    color: '#c4fff6',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1.4
+  },
+  promoTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 7,
+    maxWidth: 280
+  },
+  promoCopy: {
+    color: '#dcfffa',
+    fontSize: 10,
+    marginTop: 5
+  },
+  promoCta: {
+    color: 'white',
+    fontSize: 9,
+    fontWeight: '900',
+    marginTop: 13,
+    letterSpacing: 0.7
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: -7,
+    marginBottom: 13
+  },
+  dot: {
+    height: 5,
+    width: 5, backgroundColor: '#415151',
+    borderRadius: 4
+  },
+  dotOn: {
+    width: 15,
+    backgroundColor: C.teal
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 7,
+    marginBottom: 9
+  },
+  sectionTitle: {
+    color: C.white,
+    fontWeight: '800',
+    fontSize: 14
+  },
+  seeAll: {
+    color: C.teal, fontSize: 10,
+    fontWeight: '700'
+  },
+  reportActions: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    marginTop: 8
+  },
+  reportButton: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#27655f',
+    backgroundColor: '#172423',
+    paddingHorizontal: 12,
+    paddingVertical: 8
+
+  }, reportButtonOn: {
+    backgroundColor: '#087f78'
+  },
+  reportButtonText: {
+    color: C.mint,
+    fontSize: 9,
+    fontWeight: '800'
+  },
+  categoryRow: {
+    gap: 8,
+    paddingBottom: 13
+  },
+  categoryTile: {
+    width: 77,
+    minHeight: 78,
+    borderRadius: 13,
+    backgroundColor: C.card,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+
+  categoryEmoji: {
+    color: C.teal,
+    fontSize: 23
+  },
+  categoryText: {
+    color: '#d2dadd', fontSize: 8, fontWeight: '700',
+    textAlign: 'center', lineHeight: 11
+  },
+  filterChip: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.card,
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
+  filterChipOn: {
+    backgroundColor: '#064d48',
+    borderColor: C.teal
+  },
+  filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: {
+    color: C.mint
+  },
+  zoneRow: {
+    gap: 8,
+    paddingBottom: 13
+  },
+  zoneChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.line
+  },
+  zoneSelected: {
+    borderColor: C.teal,
+    backgroundColor: '#063d3a'
+  },
+  zoneText: {
+    color: '#bdc7ca',
+    fontSize: 10
+  },
+  zoneTextSelected: {
+    color: C.mint
+  },
+  productGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+    marginBottom: 18
+  },
+  productCard: {
+    width: '48.5%',
+    backgroundColor: C.card, borderRadius: 14, padding: 9,
+    borderWidth: 1,
+    borderColor: '#1d272a'
+  },
+  productImage: {
+    height: 102, borderRadius: 10, backgroundColor: '#20282c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8, position: 'relative'
+  },
+  productPhoto: {
+    width: '78%',
+    height: '78%'
+  },
+  productFallback: {
+    color: C.teal, fontSize: 30,
+    fontWeight: '900'
+  },
+  heart: {
+    position: 'absolute',
+    top: 5,
+    right: 6,
+    height: 27, width: 27,
+    borderRadius: 14,
+    backgroundColor: '#0c1416',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  heartText: {
+    color: C.mint,
+    fontSize: 19,
+    lineHeight: 22
+  },
+  discountBadge: {
+    position: 'absolute',
+    left: 5,
+    top: 6,
+    color: '#052a26',
+    backgroundColor: '#9af5e2',
+    fontSize: 7,
+    fontWeight: '900',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 3
+  },
+  productCategory: {
+    color: C.teal, fontSize: 8, fontWeight: '700',
+    marginBottom: 3
+  },
+  productName: {
+    color: C.white,
+    fontSize: 11,
+    fontWeight: '800',
+    minHeight: 28
+  },
+  productDesc: {
+    color: C.muted,
+    fontSize: 8,
+    marginTop: 4
+  },
+  rxNote: {
+    color: '#e5bd80',
+    fontSize: 7,
+    marginTop: 5
+  },
+  productFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8
+  },
+  productPrice: {
+    color: C.white,
+    fontWeight: '900',
+    fontSize: 12
+  },
+  mrp: {
+    color: C.muted,
+    fontSize: 8,
+    marginTop: 3
+  },
+  strike: {
+    textDecorationLine: 'line-through'
+  },
+  addButton: {
+    minWidth: 30,
+    height: 29,
+    paddingHorizontal: 8,
+    backgroundColor: C.tealDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8
+  },
+  addButtonText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '800'
+  },
+  disabled: {
+    backgroundColor: '#454c4e'
+  },
+  tabs: {
+    height: 59,
+    borderTopWidth: 1,
+    borderColor: '#20282b',
+    flexDirection: 'row',
+    backgroundColor: '#090e10',
+    justifyContent: 'space-around',
+    paddingTop: 7
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2
+  },
+  tabIcon: {
+    color: '#728085', fontSize: 19, lineHeight: 22
+  }, tabOn: {
+    color: C.teal
+
+  },
+  tabLabel: {
+    color: '#879297',
+    fontSize: 8
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: 18,
+    backgroundColor: C.tealDark,
+    borderRadius: 9,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center', justifyContent: 'center'
+  }, cartBadgeText: { color: 'white', fontSize: 8, fontWeight: '800' },
   configBanner: { backgroundColor: '#15322e', padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 11, fontWeight: '800' }, configText: { color: '#b3c5c5', fontSize: 9, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: '#3d2c16', marginBottom: 10, gap: 8 }, noticeText: { color: '#f6dcaa', fontSize: 10, flex: 1 }, dismiss: { color: '#f6dcaa', fontSize: 19 },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 16 }, emptyGlyph: { color: C.teal, fontSize: 28, marginBottom: 9 }, emptyTitle: { color: '#e5eeee', fontSize: 12, fontWeight: '700', textAlign: 'center' }, emptyCopy: { color: C.muted, fontSize: 9, textAlign: 'center', marginTop: 5, lineHeight: 14, maxWidth: 245 },
   cartNudge: { backgroundColor: '#0b4239', borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: '#8ef6cc', fontSize: 17 }, nudgeText: { color: '#d4ffec', fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: '#253033', alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: '#b1bcbe', fontSize: 10 }, summaryValue: { color: '#e8eeee', fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: '#78e4aa' }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: '#123433' }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: '#20272b', color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: '#293135' },
