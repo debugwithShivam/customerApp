@@ -100,6 +100,17 @@ export function CustomerApp() {
   const back = () => { setPage(history.at(-1) ?? 'Home'); setHistory((items) => items.slice(0, -1)); setNotice(''); };
   const apiCall = async <T,>(path: string, options?: { method?: string; body?: unknown }) => api<T>(path, options);
 
+  const openAreaPicker = () => {
+    const currentZone = zones.find((zone) => zone.id === zoneId);
+    if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) {
+      setSelectedLocation({ latitude: Number(currentZone.latitude), longitude: Number(currentZone.longitude), address: currentZone.name, city: currentZone.city, pincode: currentZone.pincode });
+    }
+    setMenuOpen(false);
+    setLocationQuery(selectedLocation?.address ?? '');
+    setLocationNotice('');
+    setAreaPickerOpen(true);
+  };
+
   const loadPrescriptionCentre = async () => {
     const [data, consultations, pharmacies, savedAddresses] = await Promise.all([
       apiCall<any>('/prescription-requests'),
@@ -518,14 +529,14 @@ export function CustomerApp() {
   const homeScreen = () => <>
     {configMessage ? <View style={s.configBanner}><Text style={s.configTitle}>Backend connection ready to configure</Text><Text style={s.configText}>{configMessage}</Text></View> : null}
     {notice ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
-    <Pressable accessibilityRole="button" accessibilityLabel="Choose your delivery service area" onPress={() => { const currentZone = zones.find((zone) => zone.id === zoneId); if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) setSelectedLocation({ latitude: Number(currentZone.latitude), longitude: Number(currentZone.longitude), address: currentZone.name, city: currentZone.city, pincode: currentZone.pincode }); setLocationNotice(''); setAreaPickerOpen(true); }} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Choose your delivery service area" onPress={openAreaPicker} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
     <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>⌁</Text></View>
     <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', 'Order health essentials', 'Categories', '#0a4542')}{serviceCard('⚕', 'Consult a doctor', 'Talk to a specialist', 'Consult a Doctor', '#123c50')}{serviceCard('⚗', 'Lab tests', 'Book tests at home', 'Lab Tests', '#362d5b')}{serviceCard('⌂', 'Diagnostics', 'Browse diagnostic providers', 'Lab Tests', '#1c4a38')}</View>
     {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
       {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : null}
       <View style={s.promoShade} /><Text style={s.promoBrand}>AMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
     </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : <Pressable style={[s.promo, { width: bannerWidth - 28 }]} onPress={() => go('Categories')}><Text style={s.promoBrand}>AMEDIX  ·  EVERYDAY WELLNESS</Text><Text style={s.promoTitle}>Good health,{'\n'}great savings.</Text><Text style={s.promoCopy}>Up to 20% off on your daily essentials</Text><Text style={s.promoCta}>SHOP NOW  →</Text></Pressable>}
-    {zones.length > 1 && <>{section('Choose your service area')}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
+    {zones.length > 1 && <><Pressable accessibilityRole="button" accessibilityLabel="Choose your service area on map" onPress={openAreaPicker} style={s.sectionHead}><Text style={s.sectionTitle}>Choose your service area</Text><Text style={s.seeAll}>Choose on map &gt;</Text></Pressable><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
     {section('Shop by category', () => go('Categories'))}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.slice(0, 8).map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); go('Categories'); }} style={s.categoryTile}><Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text><Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
     {section('Featured medicines', () => go('Categories'))}{productCards()}
   </>;

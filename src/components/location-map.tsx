@@ -8,7 +8,7 @@ type Props = { center: MapPin; selected: MapPin | null; onSelect: (pin: MapPin) 
 export function LocationMap({ center, selected, onSelect }: Props) {
   const mapsEnabled = Constants.expoConfig?.extra?.googleMapsAndroidEnabled === true;
   if (Platform.OS === 'android' && !mapsEnabled) {
-    return <View style={styles.frame}><Text style={styles.unavailable}>Google Maps is paused in this APK to prevent a crash. Use address search above. Enable the map after verifying the Android Maps API key and app signing restrictions.</Text></View>;
+    return <View style={styles.frame}><Text style={styles.unavailable}>Google Maps is unavailable because this build has no configured Android Maps API key. Use address search or rebuild with the key configured.</Text></View>;
   }
 
   const focus = selected ?? center;
