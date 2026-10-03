@@ -9,7 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
 
-type Page = 'Home' | 'Categories' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+type Page = 'Home' | 'Categories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
 type Category = {
   id: number;
   name: string;
@@ -24,20 +24,6 @@ type Summary = { subtotal: number; medicine_discount: number; coupon_discount: n
 type Profile = { id: number; name: string; phone: string; email?: string };
 
 const C = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888' };
-const sampleCategories: Category[] = [
-  { id: 1, name: 'Medicine' }, { id: 2, name: 'OTC' }, { id: 3, name: 'FMCG & Household' }, { id: 4, name: 'Personal & Beauty Care' },
-  { id: 5, name: 'Medical & Surgical Care' }, { id: 6, name: 'Baby & Mother Care' }, { id: 7, name: 'Ayurveda & Homeo' }, { id: 8, name: 'Gaitcare & Pet Care' },
-];
-const DEMO_PRODUCTS: Product[] = [
-  { id: -1, name: 'DEMO ONLY — Digital Thermometer', description: 'Fictional preview item. Not for sale.', unit: '1 unit', price: 149, stock: 0, medicine_type: 'otc', category_name: 'DEMO Showcase', is_demo: true },
-  { id: -2, name: 'DEMO ONLY — First Aid Kit', description: 'Fictional preview item. Not for sale.', unit: '1 kit', price: 299, stock: 0, medicine_type: 'otc', category_name: 'DEMO Showcase', is_demo: true },
-  { id: -3, name: 'DEMO ONLY — Face Masks (10 pack)', description: 'Fictional preview item. Not for sale.', unit: '10 masks', price: 99, stock: 0, medicine_type: 'otc', category_name: 'DEMO Showcase', is_demo: true },
-  { id: -4, name: 'DEMO ONLY — Vitamin C Sample Pack', description: 'Fictional preview item. Not for sale or medical advice.', unit: '10 tablets', price: 79, stock: 0, medicine_type: 'otc', category_name: 'DEMO Showcase', is_demo: true },
-];
-const DEMO_DOCTORS = [
-  { id: -1, name: 'Asha Sample', business_name: 'DEMO ONLY — Not a real clinic', speciality: 'General Physician', qualification: 'Fictional demo profile', experience_years: 8, consultation_fee: 199, is_demo: true },
-  { id: -2, name: 'Rohan Demo', business_name: 'DEMO ONLY — Not a real clinic', speciality: 'Paediatrics', qualification: 'Fictional demo profile', experience_years: 6, consultation_fee: 249, is_demo: true },
-];
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -69,8 +55,9 @@ export function CustomerApp() {
   const [zoneId, setZoneId] = useState<number | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [categories, setCategories] = useState<Category[]>(sampleCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -89,6 +76,7 @@ export function CustomerApp() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number } | null>(null);
   const [consultationMode, setConsultationMode] = useState<'online' | 'clinic'>('online');
+  const [consultationReason, setConsultationReason] = useState('');
   const [prescriptionAsset, setPrescriptionAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [prescriptionNote, setPrescriptionNote] = useState('');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -96,6 +84,10 @@ export function CustomerApp() {
   const [prescriptionPaymentMethod, setPrescriptionPaymentMethod] = useState('cash_on_delivery');
   const [prescriptionPaymentReference, setPrescriptionPaymentReference] = useState('');
   const [doctorConsultations, setDoctorConsultations] = useState<any[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatId, setChatId] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatDraft, setChatDraft] = useState('');
   const [pickupPharmacies, setPickupPharmacies] = useState<any[]>([]);
   const [addressText, setAddressText] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -177,7 +169,7 @@ export function CustomerApp() {
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query) => {
     if (!hasBackendUrl()) return;
-    const params = new URLSearchParams({ limit: '50' });
+    const params = new URLSearchParams({ limit: '54' });
     if (selectedZone) params.set('zone_id', String(selectedZone));
     if (category) params.set('category_id', String(category));
     if (search.trim()) params.set('query', search.trim());
@@ -266,7 +258,7 @@ export function CustomerApp() {
         const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
         const data = await apiCall<any>(`/services${zoneId ? `?zone_id=${zoneId}` : ''}`);
-        setLabs(data.lab_tests ?? []); setDoctors(data.doctors ?? []);
+        setLabs(data.lab_tests ?? []); setDoctors((data.doctors ?? []).filter((doctor: any) => !doctor.is_demo && !String(doctor.business_name ?? '').startsWith('DEMO ONLY')));
       } else if (next === 'Refunds') {
         const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
       } else if (next === 'Wallet') {
@@ -330,6 +322,18 @@ export function CustomerApp() {
       await apiCall('/cart/add', { method: 'POST', body: { product_id: product.id, quantity: 1, zone_id: zoneId } });
       setNotice(`${product.name} added to cart.`); await loadCart();
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not add this medicine.'); }
+  };
+
+  const openProduct = async (product: Product) => {
+    setSelectedProduct(product);
+    go('Product details');
+    if (product.is_demo || product.id < 0 || !hasBackendUrl()) return;
+    try {
+      const result = await apiCall<{ data?: Product }>(`/products/${product.id}${zoneId ? `?zone_id=${zoneId}` : ''}`);
+      if (result.data) setSelectedProduct(result.data);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not load product details.');
+    }
   };
 
   const updateQuantity = async (item: CartItem, quantity: number) => {
@@ -403,13 +407,43 @@ export function CustomerApp() {
       await apiCall(lab ? '/lab-bookings' : '/consultations', {
         method: 'POST', body: {
           zone_id: zoneId, customer_name: profile.name, customer_phone: profile.phone, scheduled_at: bookingTime,
-          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: consultationMode }),
+          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: consultationMode, reason: consultationReason.trim() }),
           payment_method: 'cash_on_delivery',
         }
       });
-      setAppointment(null); setBookingTime(''); setConsultationMode('online'); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]); await openPage('Medical Orders');
+      setAppointment(null); setBookingTime(''); setConsultationMode('online'); setConsultationReason(''); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]); await openPage('Medical Orders');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Booking request could not be sent.'); }
   };
+
+  const openDoctorChat = async (consultation: any) => {
+    try {
+      const result = await apiCall<any>('/chat', { method: 'POST', body: { entity_type: 'consultation', entity_id: Number(consultation.id) } });
+      const id = Number(result.data?.id ?? result.conversation?.id);
+      if (!id) throw new Error('Chat is not available for this appointment yet.');
+      const thread = await apiCall<any>(`/chat/${id}/show`);
+      setChatId(id); setChatMessages(thread.messages ?? []); setChatOpen(true);
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not open the doctor chat.'); }
+  };
+
+  const sendDoctorChat = async () => {
+    if (!chatId || !chatDraft.trim()) return;
+    try {
+      const result = await apiCall<any>(`/chat/${chatId}/send`, { method: 'POST', body: { text: chatDraft.trim() } });
+      setChatMessages(result.messages ?? []); setChatDraft('');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Message could not be sent.'); }
+  };
+
+  useEffect(() => {
+    if (!chatOpen || !chatId) return;
+    void api(`/chat/${chatId}/read`, { method: 'POST' }).catch(() => undefined);
+    const timer = setInterval(() => {
+      const lastId = chatMessages.at(-1)?.id ?? 0;
+      void api<any>(`/chat/${chatId}/show?after_id=${lastId}`).then((result) => {
+        if (result.messages?.length) setChatMessages((messages) => [...messages, ...result.messages]);
+      }).catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [chatOpen, chatId, chatMessages]);
 
   const consultationReportHtml = (visit: any) => {
     const escape = (value: unknown) => String(value ?? '').replace(/[&<>\"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[character]!));
@@ -524,22 +558,20 @@ export function CustomerApp() {
   const serviceCard = (glyph: string, title: string, detail: string, target: Page, accent: string) => <Pressable key={title} onPress={() => void openPage(target)} style={s.serviceCard}><View style={[s.serviceIcon, { backgroundColor: accent }]}><Text style={s.serviceGlyph}>{glyph}</Text></View><View style={{ flex: 1 }}><Text style={s.serviceTitle}>{title}</Text><Text style={s.serviceSub}>{detail}</Text></View><Text style={s.arrow}>›</Text></Pressable>;
 
   const productCards = (items = products) => {
-    const visibleItems = query.trim()
-      ? items
-      : [...items, ...(items.some((item) => item.name.startsWith('DEMO ONLY')) ? [] : DEMO_PRODUCTS)];
+    const visibleItems = items;
     return visibleItems.length ? <View style={s.productGrid}>{visibleItems.map((product) => {
-    const currentPrice = product.discount_price && product.discount_price > 0 ? product.discount_price : product.price;
-    const hasDiscount = currentPrice < product.price;
-    return <View key={product.id} style={s.productCard}>
-      <View style={s.productImage}>{product.thumbnail_full_url ? <Image source={{ uri: product.thumbnail_full_url }} contentFit="contain" style={s.productPhoto} /> : <Text style={s.productFallback}>Rx</Text>}
-        {!product.is_demo && !product.name.startsWith('DEMO ONLY') && <Pressable onPress={() => void toggleWishlist(product)} style={s.heart}><Text style={s.heartText}>♡</Text></Pressable>}
-        {hasDiscount && <Text style={s.discountBadge}>{Math.round((1 - currentPrice / product.price) * 100)}% OFF</Text>}
-      </View>
-      {product.is_demo || product.name.startsWith('DEMO ONLY') ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Not for sale</Text> : null}<Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
-      {product.medicine_type && product.medicine_type !== 'otc' && <Text style={s.rxNote}>Prescription may be required</Text>}
-      <View style={s.productFooter}><View><Text style={s.productPrice}>{money(currentPrice)}</Text>{hasDiscount && <Text style={s.mrp}>MRP <Text style={s.strike}>{money(product.price)}</Text></Text>}</View><Pressable disabled={product.stock < 1} onPress={() => void addToCart(product)} style={[s.addButton, product.stock < 1 && s.disabled]}><Text style={s.addButtonText}>{product.stock < 1 ? 'Out' : '+'}</Text></Pressable></View>
-    </View>;
-  })}</View> : empty('⌕', busy ? 'Loading products…' : 'No products found', 'Try another category or search term.');
+      const currentPrice = product.discount_price && product.discount_price > 0 ? product.discount_price : product.price;
+      const hasDiscount = currentPrice < product.price;
+      return <Pressable key={product.id} accessibilityRole="button" accessibilityLabel={`View ${product.name} details`} onPress={() => void openProduct(product)} style={s.productCard}>
+        <View style={s.productImage}>{product.thumbnail_full_url ? <Image source={{ uri: product.thumbnail_full_url }} contentFit="contain" style={s.productPhoto} /> : <Image source={{ uri: `${backendUrl()}/uploads/demo-assets/medical_medicine_box.png` }} contentFit="contain" style={s.productPhoto} />}
+          {!product.is_demo && !product.name.startsWith('DEMO ONLY') && <Pressable onPress={(event) => { event.stopPropagation(); void toggleWishlist(product); }} style={s.heart}><Text style={s.heartText}>♡</Text></Pressable>}
+          {hasDiscount && <Text style={s.discountBadge}>{Math.round((1 - currentPrice / product.price) * 100)}% OFF</Text>}
+        </View>
+        {product.is_demo || product.name.startsWith('DEMO ONLY') ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Not for sale</Text> : null}<Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
+        {product.medicine_type && product.medicine_type !== 'otc' && <Text style={s.rxNote}>Prescription may be required</Text>}
+        <View style={s.productFooter}><View><Text style={s.productPrice}>{money(currentPrice)}</Text>{hasDiscount && <Text style={s.mrp}>MRP <Text style={s.strike}>{money(product.price)}</Text></Text>}</View><Pressable disabled={product.stock < 1} onPress={(event) => { event.stopPropagation(); void addToCart(product); }} style={[s.addButton, product.stock < 1 && s.disabled]}><Text style={s.addButtonText}>{product.stock < 1 ? 'Out' : '+'}</Text></Pressable></View>
+      </Pressable>;
+    })}</View> : empty('⌕', busy ? 'Loading products…' : 'No products found', 'Try another category or search term.');
   };
 
   const homeScreen = () => <>
@@ -550,22 +582,45 @@ export function CustomerApp() {
     <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', 'Order health essentials', 'Categories', '#0a4542')}{serviceCard('⚕', 'Consult a doctor', 'Talk to a specialist', 'Consult a Doctor', '#123c50')}{serviceCard('⚗', 'Lab tests', 'Book tests at home', 'Lab Tests', '#362d5b')}{serviceCard('⌂', 'Diagnostics', 'Browse diagnostic providers', 'Lab Tests', '#1c4a38')}</View>
     {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
       {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : null}
-      <View style={s.promoShade} /><Text style={s.promoBrand}>AMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
-    </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : <Pressable style={[s.promo, { width: bannerWidth - 28 }]} onPress={() => go('Categories')}><Text style={s.promoBrand}>AMEDIX  ·  EVERYDAY WELLNESS</Text><Text style={s.promoTitle}>Good health,{'\n'}great savings.</Text><Text style={s.promoCopy}>Up to 20% off on your daily essentials</Text><Text style={s.promoCta}>SHOP NOW  →</Text></Pressable>}
+      <View style={s.promoShade} /><Text style={s.promoBrand}>AIMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
+    </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : <Pressable style={[s.promo, { width: bannerWidth - 28 }]} onPress={() => go('Categories')}><Text style={s.promoBrand}>AIMEDIX  ·  EVERYDAY WELLNESS</Text><Text style={s.promoTitle}>Good health,{'\n'}great savings.</Text><Text style={s.promoCopy}>Up to 20% off on your daily essentials</Text><Text style={s.promoCta}>SHOP NOW  →</Text></Pressable>}
     {zones.length > 1 && <><Pressable accessibilityRole="button" accessibilityLabel="Choose your service area on map" onPress={openAreaPicker} style={s.sectionHead}><Text style={s.sectionTitle}>Choose your service area</Text><Text style={s.seeAll}>Choose on map &gt;</Text></Pressable><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
-    {section('Shop by category', () => go('Categories'))}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.slice(0, 8).map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); go('Categories'); }} style={s.categoryTile}><Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text><Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
+    {section('Shop by category', () => { setCategoryId(null); go('Categories'); })}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.slice(0, 8).map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); go('Category products'); }} style={s.categoryTile}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text>}<Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
     {section('Featured medicines', () => go('Categories'))}{productCards()}
   </>;
 
   const categoryScreen = () => <>
-    <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} /></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.map((category) => <Pressable key={category.id} onPress={() => setCategoryId(categoryId === category.id ? null : category.id)} style={[s.filterChip, categoryId === category.id && s.filterChipOn]}><Text style={[s.filterText, categoryId === category.id && s.filterTextOn]}>{category.name}</Text></Pressable>)}</ScrollView>
-    {section(categoryId ? categories.find((c) => c.id === categoryId)?.name ?? 'Medicines' : 'All medicines')}{productCards()}
+    {section('Shop by category')}
+    {categories.length ? <View style={s.categoryGrid}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); go('Category products'); }} style={s.categoryCard}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : '✚'}</Text>}<Text style={s.categoryText}>{category.name}</Text><Text style={s.serviceSub}>Browse products ›</Text></Pressable>)}</View> : empty('▦', 'No categories available', 'Categories added by the pharmacy will appear here.')}
   </>;
+
+  const categoryProductsScreen = () => <>
+    <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} /></View>
+    {section(categories.find((c) => c.id === categoryId)?.name ?? 'Products')}
+    {productCards()}
+  </>;
+
+  const productDetailScreen = () => {
+    if (!selectedProduct) return empty('Rx', 'Product unavailable', 'Go back and choose another product.');
+    const currentPrice = selectedProduct.discount_price && selectedProduct.discount_price > 0 ? selectedProduct.discount_price : selectedProduct.price;
+    const demo = selectedProduct.is_demo || selectedProduct.id < 0 || selectedProduct.name.startsWith('DEMO ONLY');
+    return <View style={s.formCard}>
+      {selectedProduct.thumbnail_full_url ? <Image source={{ uri: selectedProduct.thumbnail_full_url }} contentFit="contain" style={s.detailPhoto} /> : <Image source={{ uri: `${backendUrl()}/uploads/demo-assets/medical_medicine_box.png` }} contentFit="contain" style={s.detailPhoto} />}
+      {demo ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Not for sale</Text> : null}
+      <Text style={s.productCategory}>{selectedProduct.category_name ?? 'Healthcare'}</Text>
+      <Text style={s.detailTitle}>{selectedProduct.name}</Text>
+      {selectedProduct.unit ? <Text style={s.formCopy}>Pack: {selectedProduct.unit}</Text> : null}
+      <Text style={s.detailPrice}>{money(currentPrice)}{currentPrice < selectedProduct.price ? `  ·  MRP ${money(selectedProduct.price)}` : ''}</Text>
+      {selectedProduct.medicine_type && selectedProduct.medicine_type !== 'otc' ? <Text style={s.rxNote}>Prescription may be required</Text> : null}
+      <Text style={s.fieldLabel}>Product information</Text>
+      <Text style={s.detailDescription}>{selectedProduct.description || 'Product information will be provided by the pharmacy.'}</Text>
+      {demo ? <Text style={s.formCopy}>This is a sample product and cannot be added to your cart.</Text> : primaryButton(selectedProduct.stock < 1 ? 'Out of stock' : 'Add to cart', () => void addToCart(selectedProduct))}
+    </View>;
+  };
 
   const cartScreen = () => <>
     {summary.extra_discount_threshold > 0 && <View style={s.cartNudge}><Text style={s.nudgeGlyph}>✦</Text><Text style={s.nudgeText}>Add {money(summary.extra_discount_threshold)} more to unlock FLAT 20% OFF on your entire order!</Text></View>}
-    {cart.length ? cart.map((item) => <View key={item.id} style={s.cartRow}>{item.thumbnail_full_url ? <Image source={{ uri: item.thumbnail_full_url }} contentFit="contain" style={s.cartImage} /> : <View style={[s.cartImage, s.cartFallback]}><Text style={{ color: C.teal }}>Rx</Text></View>}<View style={{ flex: 1 }}><Text style={s.cartName}>{item.name}</Text><Text style={s.cartSub}>{money(item.price)}{item.unit ? ` · ${item.unit}` : ''}</Text><View style={s.qtyRow}><Pressable onPress={() => void updateQuantity(item, item.quantity - 1)} style={s.qtyButton}><Text style={s.qtyText}>−</Text></Pressable><Text style={s.qtyValue}>{item.quantity}</Text><Pressable onPress={() => void updateQuantity(item, item.quantity + 1)} style={s.qtyButton}><Text style={s.qtyText}>+</Text></Pressable><Pressable onPress={() => void updateQuantity(item, 0)} style={s.remove}><Text style={s.removeText}>Remove</Text></Pressable></View></View><Text style={s.productPrice}>{money(item.price * item.quantity)}</Text></View>) : empty('▱', 'Your cart is empty', 'Add medicines to get started.')}
+    {cart.length ? cart.map((item) => <View key={item.id} style={s.cartRow}>{item.thumbnail_full_url ? <Image source={{ uri: item.thumbnail_full_url }} contentFit="contain" style={s.cartImage} /> : <Image source={{ uri: `${backendUrl()}/uploads/demo-assets/medical_medicine_box.png` }} contentFit="contain" style={s.cartImage} />}<View style={{ flex: 1 }}><Text style={s.cartName}>{item.name}</Text><Text style={s.cartSub}>{money(item.price)}{item.unit ? ` · ${item.unit}` : ''}</Text><View style={s.qtyRow}><Pressable onPress={() => void updateQuantity(item, item.quantity - 1)} style={s.qtyButton}><Text style={s.qtyText}>−</Text></Pressable><Text style={s.qtyValue}>{item.quantity}</Text><Pressable onPress={() => void updateQuantity(item, item.quantity + 1)} style={s.qtyButton}><Text style={s.qtyText}>+</Text></Pressable><Pressable onPress={() => void updateQuantity(item, 0)} style={s.remove}><Text style={s.removeText}>Remove</Text></Pressable></View></View><Text style={s.productPrice}>{money(item.price * item.quantity)}</Text></View>) : empty('▱', 'Your cart is empty', 'Add medicines to get started.')}
     {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine label="Item total" value={money(summary.subtotal)} /><SummaryLine label="Medicine discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine label="Taxes" value={money(summary.tax_total)} /><SummaryLine label="Delivery" value="FREE" green /><SummaryLine label="Platform & safety packaging" value={money(summary.platform_fee)} /><View style={s.summaryDivider} /><SummaryLine label="To pay" value={money(summary.total)} strong />
       {!profile && <Pressable onPress={() => go('Sign in')} style={s.loginPrompt}><Text style={s.loginPromptText}>Sign in to complete checkout and save your orders  ›</Text></Pressable>}
       <Text style={s.checkoutAddressTitle}>Delivery address</Text><TextInput value={addressText} onChangeText={setAddressText} placeholder="House, street, area, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Placing order…' : `Place order · ${money(summary.total)}`, () => void placeOrder())}</View>}
@@ -578,14 +633,11 @@ export function CustomerApp() {
     ] as [Page, string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
   </>;
 
-  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
+  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}<Pressable onPress={() => void openDoctorChat(order)}><Text style={s.seeAll}>Chat with doctor ›</Text></Pressable>{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
 
   const servicesScreen = (isLab: boolean) => {
-    const items = isLab ? labs : [
-      ...doctors,
-      ...(doctors.some((doctor) => doctor.is_demo || String(doctor.business_name ?? '').startsWith('DEMO ONLY')) ? [] : DEMO_DOCTORS),
-    ];
-    return <>{!zoneId && empty('⌖', 'Choose your delivery area first', 'We use your area to show available local providers.')}{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}>{item.is_demo ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Appointments disabled</Text> : null}<Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{item.is_demo ? <Text style={s.serviceSub}>Preview profile</Text> : primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); setPage('Booking'); })}</View></View>) : !!zoneId && empty(isLab ? '⚗' : '⚕', isLab ? 'No tests in this area' : 'No doctors in this area', 'The provider list will appear here when available.')}{page === 'Booking' && appointment ? <View style={s.modalCard}><Text style={s.sectionTitle}>Choose appointment time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="2026-10-02 10:00:00" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => setAppointment(null), true)}</View> : null}</>;
+    const items = isLab ? labs : doctors;
+    return <>{!zoneId && empty('⌖', 'Choose your delivery area first', 'We use your area to show available local providers.')}{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}><Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>) : !!zoneId && empty(isLab ? '⚗' : '⚕', isLab ? 'No tests in this area' : 'No doctors in this area', 'Approved providers added by the administrator will appear here.')}</>;
   };
 
   const loginScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</Text><Text style={s.formCopy}>Use your phone number to continue securely.</Text>{authMode === 'register' && <TextInput value={authName} onChangeText={setAuthName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} />}
@@ -594,11 +646,13 @@ export function CustomerApp() {
     <Pressable onPress={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setNotice(''); }} style={s.modeSwap}><Text style={s.modeSwapText}>{authMode === 'login' ? 'New to Amedix? Create an account' : 'Already have an account? Sign in'}</Text></Pressable>
   </View>;
 
-  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
+  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
 
   const pageBody = () => {
     if (page === 'Home') return homeScreen();
     if (page === 'Categories') return categoryScreen();
+    if (page === 'Category products') return categoryProductsScreen();
+    if (page === 'Product details') return productDetailScreen();
     if (page === 'Cart') return cartScreen();
     if (page === 'My Account') return accountScreen();
     if (page === 'Medical Orders') return ordersScreen();
@@ -642,17 +696,17 @@ export function CustomerApp() {
     return empty('✚', 'Coming soon', 'This section will be available shortly.');
   };
 
-  const title = page === 'My Account' ? 'My Account' : page === 'Medical Orders' ? 'My Orders' : page === 'Booking' ? 'Booking' : page;
+  const title = page === 'Category products' ? (categories.find((category) => category.id === categoryId)?.name ?? 'Products') : page === 'My Account' ? 'My Account' : page === 'Medical Orders' ? 'My Orders' : page === 'Booking' ? 'Booking' : page === 'Product details' ? 'Product details' : page;
   // Keep the primary navigation limited to the four customer areas. Cart remains
   // available from the bag button so shopping and checkout are still reachable.
   const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
 
   return <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
-    <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
+    <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AIMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
     <View style={[s.tabs, { height: 59 + safeAreaInsets.bottom, paddingBottom: safeAreaInsets.bottom }]}>{navItems.map(([glyph, label, caption]) => <Pressable key={label} onPress={() => { setMenuOpen(false); setNotice(''); setHistory([]); if (label === 'Medical Orders') void openPage(label); else setPage(label); if (label === 'My Account' && !profile) setAuthMode('login'); }} style={s.tab}><Text style={[s.tabIcon, page === label && s.tabOn]}>{glyph}</Text><Text style={[s.tabLabel, page === label && s.tabOn]}>{caption}</Text></Pressable>)}</View>
-    {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>{zones.length > 0 && <><Text style={s.menuSection}>DELIVERING TO</Text>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setMenuOpen(false); setRefreshKey((value) => value + 1); }} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={[s.menuItemText, zoneId === zone.id && s.seeAll]}>{zone.name}</Text><Text style={s.arrow}>{zone.id === zoneId ? '✓' : '›'}</Text></Pressable>)}</>}
+    {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AIMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>{zones.length > 0 && <><Text style={s.menuSection}>DELIVERING TO</Text>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setMenuOpen(false); setRefreshKey((value) => value + 1); }} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={[s.menuItemText, zoneId === zone.id && s.seeAll]}>{zone.name}</Text><Text style={s.arrow}>{zone.id === zoneId ? '✓' : '›'}</Text></Pressable>)}</>}
       <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home', 'Categories', 'Medical Orders', 'My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
       {profile ? <Pressable onPress={() => { void clearLoginToken(); setProfile(null); setMenuOpen(false); setNotice('Signed out.'); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign out</Text></Pressable> : <Pressable onPress={() => { go('Sign in'); setMenuOpen(false); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign in / Create account</Text></Pressable>}
       <Text style={s.menuFooter}>{config?.app_name ?? 'Amedix Meds'}{backendUrl() ? '\nConnected API: ' + new URL(backendUrl()).host : ''}</Text></View></View>}
@@ -675,6 +729,14 @@ export function CustomerApp() {
           </ScrollView>
         </View>
       </View>
+    </Modal>
+    <Modal visible={chatOpen} transparent animationType="slide" onRequestClose={() => setChatOpen(false)}>
+      <View style={s.areaPickerModalRoot}><Pressable onPress={() => setChatOpen(false)} style={s.areaPickerScrim} /><View style={s.areaPickerSheet}>
+        <View style={s.areaPickerHeader}><Text style={s.areaPickerTitle}>Doctor chat</Text><Pressable onPress={() => setChatOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>
+        <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 8 }}>{chatMessages.map((message) => <View key={message.id} style={[s.chatBubble, message.sender_type === 'customer' && s.chatBubbleMine]}><Text style={s.chatMessage}>{message.body}</Text><Text style={s.chatTime}>{message.created_at}</Text></View>)}{!chatMessages.length ? <Text style={s.serviceSub}>Send a message to your doctor.</Text> : null}</ScrollView>
+        <TextInput value={chatDraft} onChangeText={setChatDraft} placeholder="Write a message" placeholderTextColor={C.muted} style={s.input} multiline />
+        {primaryButton('Send message', () => void sendDoctorChat())}
+      </View></View>
     </Modal>
   </SafeAreaView>;
 }
@@ -719,7 +781,7 @@ const s = StyleSheet.create({
     color: C.mint,
     fontWeight: '900',
     fontSize: 17,
-    letterSpacing: 1, flex: 1
+    letterSpacing: 1, flex: 1, flexShrink: 1, minWidth: 0
   },
   brandSub: {
     color: C.teal,
@@ -972,15 +1034,25 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 6
   },
+  categoryImage: { width: 40, height: 40, borderRadius: 9 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 },
+  categoryCard: { width: '48.5%', minHeight: 128, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  categoryCardImage: { width: 58, height: 58, borderRadius: 12 },
 
   categoryEmoji: {
     color: C.teal,
     fontSize: 23
   },
   categoryText: {
-    color: '#d2dadd', fontSize: 8, fontWeight: '700',
+    color: '#d2dadd',
+    fontSize: 8,
+     fontWeight: '700',
     textAlign: 'center', lineHeight: 11
   },
+  chatBubble: { maxWidth: '85%', alignSelf: 'flex-start', backgroundColor: '#20282c', padding: 10, borderRadius: 11 },
+  chatBubbleMine: { alignSelf: 'flex-end', backgroundColor: '#075d55' },
+  chatMessage: { color: C.white, fontSize: 10, lineHeight: 15 },
+  chatTime: { color: C.muted, fontSize: 7, marginTop: 5 },
   filterChip: {
     borderRadius: 20,
     borderWidth: 1,
@@ -993,7 +1065,11 @@ const s = StyleSheet.create({
     backgroundColor: '#064d48',
     borderColor: C.teal
   },
-  filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: {
+  filterText: {
+    color: '#c3cccf',
+    fontSize: 10
+  },
+  filterTextOn: {
     color: C.mint
   },
   zoneRow: {
@@ -1044,6 +1120,45 @@ const s = StyleSheet.create({
   productFallback: {
     color: C.teal, fontSize: 30,
     fontWeight: '900'
+  },
+  detailPhoto: {
+    width: '100%',
+    height: 250,
+    backgroundColor: '#20282c',
+    borderRadius: 12,
+    marginBottom: 16
+
+  },
+
+  detailPhotoFallback: {
+    width: '100%',
+    height: 190,
+    backgroundColor: '#20282c',
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center', justifyContent: 'center'
+  },
+  detailTitle: {
+    color: C.white,
+    fontSize: 22,
+    lineHeight: 29,
+    fontWeight: '900',
+    marginBottom: 8
+
+  },
+  detailPrice: {
+    color: C.mint,
+    fontSize: 22,
+    fontWeight: '900',
+    marginVertical: 12
+
+  },
+  detailDescription: {
+    color: '#c3cccf',
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 16
+
   },
   heart: {
     position: 'absolute',
@@ -1143,7 +1258,7 @@ const s = StyleSheet.create({
     gap: 2
   },
   tabIcon: {
-    color: '#728085', fontSize: 19, lineHeight: 22
+    color: '#728085', fontSize: 23, lineHeight: 25, fontWeight: '900'
   }, tabOn: {
     color: C.teal
 
