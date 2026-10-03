@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { LocationMap, type MapPin } from '@/components/location-map';
-import { api, backendUrl, clearLoginToken, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
+import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
 
 type Page = 'Home' | 'Categories' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
 type Category = {
@@ -75,6 +77,7 @@ export function CustomerApp() {
   const [labs, setLabs] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number } | null>(null);
+  const [consultationMode, setConsultationMode] = useState<'online' | 'clinic'>('online');
   const [prescriptionAsset, setPrescriptionAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [prescriptionNote, setPrescriptionNote] = useState('');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -343,12 +346,69 @@ export function CustomerApp() {
       await apiCall(lab ? '/lab-bookings' : '/consultations', {
         method: 'POST', body: {
           zone_id: zoneId, customer_name: profile.name, customer_phone: profile.phone, scheduled_at: bookingTime,
-          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: 'online' }),
+          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: consultationMode }),
           payment_method: 'cash_on_delivery',
         }
       });
-      setAppointment(null); setBookingTime(''); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]);
+      setAppointment(null); setBookingTime(''); setConsultationMode('online'); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]); await openPage('Medical Orders');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Booking request could not be sent.'); }
+  };
+
+  const consultationReportHtml = (visit: any) => {
+    const escape = (value: unknown) => String(value ?? '').replace(/[&<>\"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[character]!));
+    const medicines = Array.isArray(visit.prescription_items) ? visit.prescription_items : [];
+    return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font:14px Arial,sans-serif;color:#172324;margin:36px}h1{color:#087f78;font-size:22px}h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #d7e1df;padding-bottom:6px}.meta{line-height:1.8;color:#405252}.note{white-space:pre-wrap;line-height:1.6}.medicine{padding:8px 0;border-bottom:1px solid #e5ecea}.footer{margin-top:28px;color:#637170;font-size:11px}</style></head><body><h1>Amedix · Consultation report</h1><div class="meta"><b>Patient:</b> ${escape(visit.customer_name || profile?.name)}<br><b>Doctor:</b> Dr. ${escape(visit.doctor_name)}<br><b>Appointment:</b> ${escape(visit.scheduled_at)}<br><b>Mode:</b> ${visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'}<br><b>Status:</b> ${escape(String(visit.status || '').replaceAll('_', ' '))}<br><b>Consultation ID:</b> ${escape(visit.id)}</div><h2>Doctor's notes</h2><div class="note">${escape(visit.clinical_note || 'No consultation note was added.')}</div><h2>Prescription</h2>${medicines.length ? medicines.map((item: any) => `<div class="medicine"><b>${escape(item.name)}</b>${item.strength ? ` · ${escape(item.strength)}` : ''}<br>${[item.dosage, item.frequency, item.duration, item.instructions].filter(Boolean).map(escape).join(' · ')}</div>`).join('') : '<div class="note">No medicines prescribed.</div>'}<div class="note">${escape(visit.prescription_note || '')}</div><p class="footer">This report contains information saved by your doctor. Follow your doctor's advice for care.</p></body></html>`;
+  };
+
+  const shareConsultationFile = async (visit: any, format: 'csv' | 'pdf') => {
+    try {
+      const fileBase = `amedix-consultation-${Number(visit.id)}`;
+      let uri: string;
+      if (format === 'pdf') {
+        if ((Platform.OS as string) === 'web') {
+          const printWindow = window.open('', '_blank');
+          if (!printWindow) { setNotice('Allow pop-ups to print or save this report as a PDF.'); return; }
+          printWindow.document.open(); printWindow.document.write(consultationReportHtml(visit)); printWindow.document.close();
+          printWindow.focus(); printWindow.print(); setNotice('Choose “Save as PDF” in the browser print dialog.'); return;
+        }
+        ({ uri } = await Print.printToFileAsync({ html: consultationReportHtml(visit) }));
+      } else {
+        const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+        const medicines = (Array.isArray(visit.prescription_items) ? visit.prescription_items : []).map((item: any) => [item.name, item.strength, item.dosage, item.frequency, item.duration, item.instructions].filter(Boolean).join(' | ')).join('; ');
+        const rows = [['Amedix consultation report'], ['Patient', visit.customer_name || profile?.name], ['Doctor', `Dr. ${visit.doctor_name || ''}`], ['Appointment', visit.scheduled_at], ['Mode', visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'], ['Status', visit.status], ['Consultation ID', visit.id], ['Doctor notes', visit.clinical_note], ['Prescription', medicines || 'No medicines prescribed'], ['Prescription note', visit.prescription_note]];
+        const csv = `\uFEFF${rows.map((row) => row.map(quote).join(',')).join('\r\n')}`;
+        if ((Platform.OS as string) === 'web') {
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${fileBase}.csv`; link.click(); URL.revokeObjectURL(link.href); setNotice('Excel-compatible report downloaded.'); return;
+        }
+        uri = `${FileSystem.cacheDirectory}${fileBase}.csv`;
+        await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      }
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: format === 'pdf' ? 'application/pdf' : 'text/csv', dialogTitle: `Save consultation ${format.toUpperCase()} report` });
+      else setNotice('File created, but sharing is unavailable on this device.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : `Could not create the ${format.toUpperCase()} report.`); }
+  };
+
+  const downloadLabReport = async (booking: any) => {
+    const reportUrl = String(booking.report_url ?? '').trim();
+    if (reportUrl === '') return;
+    if (/^https?:\/\//i.test(reportUrl)) { await Linking.openURL(reportUrl); return; }
+    try {
+      const { data, fileName, mimeType } = await fetchDocument(`/documents/lab-report/${Number(booking.id)}`);
+      if ((Platform.OS as string) === 'web') {
+        const blob = new Blob([data]);
+        const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); URL.revokeObjectURL(link.href);
+        setNotice('Lab report downloaded.');
+        return;
+      }
+      const bytes = new Uint8Array(data);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const uri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(uri, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType, dialogTitle: 'Save lab report' });
+      else setNotice('Report downloaded, but sharing is unavailable on this device.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not download the lab report.'); }
   };
 
   const pickPrescription = async () => {
@@ -456,11 +516,11 @@ export function CustomerApp() {
     ] as [Page, string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
   </>;
 
-  const ordersScreen = () => orders.length ? orders.map((order) => <View key={order.id} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text></View><Text style={s.arrow}>›</Text></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
+  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
 
   const servicesScreen = (isLab: boolean) => {
     const items = isLab ? labs : doctors;
-    return <>{!zoneId && empty('⌖', 'Choose your delivery area first', 'We use your area to show available local providers.')}{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}><Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text><View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); setPage('Booking'); })}</View></View>) : !!zoneId && empty(isLab ? '⚗' : '⚕', isLab ? 'No tests in this area' : 'No doctors in this area', 'The provider list will appear here when available.')}{page === 'Booking' && appointment ? <View style={s.modalCard}><Text style={s.sectionTitle}>Choose appointment time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="2026-10-02 10:00:00" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => setAppointment(null), true)}</View> : null}</>;
+    return <>{!zoneId && empty('⌖', 'Choose your delivery area first', 'We use your area to show available local providers.')}{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}><Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); setPage('Booking'); })}</View></View>) : !!zoneId && empty(isLab ? '⚗' : '⚕', isLab ? 'No tests in this area' : 'No doctors in this area', 'The provider list will appear here when available.')}{page === 'Booking' && appointment ? <View style={s.modalCard}><Text style={s.sectionTitle}>Choose appointment time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="2026-10-02 10:00:00" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => setAppointment(null), true)}</View> : null}</>;
   };
 
   const loginScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</Text><Text style={s.formCopy}>Use your phone number to continue securely.</Text>{authMode === 'register' && <TextInput value={authName} onChangeText={setAuthName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} />}
@@ -469,7 +529,7 @@ export function CustomerApp() {
     <Pressable onPress={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setNotice(''); }} style={s.modeSwap}><Text style={s.modeSwapText}>{authMode === 'login' ? 'New to Amedix? Create an account' : 'Already have an account? Sign in'}</Text></Pressable>
   </View>;
 
-  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose a time. The provider will confirm your booking.</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
+  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
 
   const pageBody = () => {
     if (page === 'Home') return homeScreen();
@@ -727,7 +787,7 @@ const s = StyleSheet.create({
   },
 
   promo: { width: 452, height: 163, borderRadius: 16, padding: 15, marginBottom: 12, backgroundColor: '#067f77', overflow: 'hidden', justifyContent: 'center' }, bannerScroller: { marginHorizontal: -14 }, promoImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' }, promoShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,25,24,0.42)' }, promoBrand: { color: '#c4fff6', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 }, promoTitle: { color: 'white', fontSize: 22, fontWeight: '900', marginTop: 7, maxWidth: 280 }, promoCopy: { color: '#dcfffa', fontSize: 10, marginTop: 5 }, promoCta: { color: 'white', fontSize: 9, fontWeight: '900', marginTop: 13, letterSpacing: 0.7 }, dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: -7, marginBottom: 13 }, dot: { height: 5, width: 5, backgroundColor: '#415151', borderRadius: 4 }, dotOn: { width: 15, backgroundColor: C.teal },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7, marginBottom: 9 }, sectionTitle: { color: C.white, fontWeight: '800', fontSize: 14 }, seeAll: { color: C.teal, fontSize: 10, fontWeight: '700' }, categoryRow: { gap: 8, paddingBottom: 13 }, categoryTile: { width: 77, minHeight: 78, borderRadius: 13, backgroundColor: C.card, padding: 8, alignItems: 'center', justifyContent: 'center', gap: 6 }, categoryEmoji: { color: C.teal, fontSize: 23 }, categoryText: { color: '#d2dadd', fontSize: 8, fontWeight: '700', textAlign: 'center', lineHeight: 11 }, filterChip: { borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 8 }, filterChipOn: { backgroundColor: '#064d48', borderColor: C.teal }, filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: { color: C.mint }, zoneRow: { gap: 8, paddingBottom: 13 }, zoneChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }, zoneSelected: { borderColor: C.teal, backgroundColor: '#063d3a' }, zoneText: { color: '#bdc7ca', fontSize: 10 }, zoneTextSelected: { color: C.mint },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7, marginBottom: 9 }, sectionTitle: { color: C.white, fontWeight: '800', fontSize: 14 }, seeAll: { color: C.teal, fontSize: 10, fontWeight: '700' }, reportActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }, reportButton: { borderRadius: 9, borderWidth: 1, borderColor: '#27655f', backgroundColor: '#172423', paddingHorizontal: 12, paddingVertical: 8 }, reportButtonOn: { backgroundColor: '#087f78' }, reportButtonText: { color: C.mint, fontSize: 9, fontWeight: '800' }, categoryRow: { gap: 8, paddingBottom: 13 }, categoryTile: { width: 77, minHeight: 78, borderRadius: 13, backgroundColor: C.card, padding: 8, alignItems: 'center', justifyContent: 'center', gap: 6 }, categoryEmoji: { color: C.teal, fontSize: 23 }, categoryText: { color: '#d2dadd', fontSize: 8, fontWeight: '700', textAlign: 'center', lineHeight: 11 }, filterChip: { borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 8 }, filterChipOn: { backgroundColor: '#064d48', borderColor: C.teal }, filterText: { color: '#c3cccf', fontSize: 10 }, filterTextOn: { color: C.mint }, zoneRow: { gap: 8, paddingBottom: 13 }, zoneChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }, zoneSelected: { borderColor: C.teal, backgroundColor: '#063d3a' }, zoneText: { color: '#bdc7ca', fontSize: 10 }, zoneTextSelected: { color: C.mint },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 }, productCard: { width: '48.5%', backgroundColor: C.card, borderRadius: 14, padding: 9, borderWidth: 1, borderColor: '#1d272a' }, productImage: { height: 102, borderRadius: 10, backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center', marginBottom: 8, position: 'relative' }, productPhoto: { width: '78%', height: '78%' }, productFallback: { color: C.teal, fontSize: 30, fontWeight: '900' }, heart: { position: 'absolute', top: 5, right: 6, height: 27, width: 27, borderRadius: 14, backgroundColor: '#0c1416', alignItems: 'center', justifyContent: 'center' }, heartText: { color: C.mint, fontSize: 19, lineHeight: 22 }, discountBadge: { position: 'absolute', left: 5, top: 6, color: '#052a26', backgroundColor: '#9af5e2', fontSize: 7, fontWeight: '900', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 3 }, productCategory: { color: C.teal, fontSize: 8, fontWeight: '700', marginBottom: 3 }, productName: { color: C.white, fontSize: 11, fontWeight: '800', minHeight: 28 }, productDesc: { color: C.muted, fontSize: 8, marginTop: 4 }, rxNote: { color: '#e5bd80', fontSize: 7, marginTop: 5 }, productFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, productPrice: { color: C.white, fontWeight: '900', fontSize: 12 }, mrp: { color: C.muted, fontSize: 8, marginTop: 3 }, strike: { textDecorationLine: 'line-through' }, addButton: { minWidth: 30, height: 29, paddingHorizontal: 8, backgroundColor: C.tealDark, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }, addButtonText: { color: 'white', fontSize: 17, fontWeight: '800' }, disabled: { backgroundColor: '#454c4e' },
   tabs: { height: 59, borderTopWidth: 1, borderColor: '#20282b', flexDirection: 'row', backgroundColor: '#090e10', justifyContent: 'space-around', paddingTop: 7 }, tab: { flex: 1, alignItems: 'center', gap: 2 }, tabIcon: { color: '#728085', fontSize: 19, lineHeight: 22 }, tabOn: { color: C.teal }, tabLabel: { color: '#879297', fontSize: 8 }, cartBadge: { position: 'absolute', top: -2, right: 18, backgroundColor: C.tealDark, borderRadius: 9, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center' }, cartBadgeText: { color: 'white', fontSize: 8, fontWeight: '800' },
   configBanner: { backgroundColor: '#15322e', padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 11, fontWeight: '800' }, configText: { color: '#b3c5c5', fontSize: 9, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: '#3d2c16', marginBottom: 10, gap: 8 }, noticeText: { color: '#f6dcaa', fontSize: 10, flex: 1 }, dismiss: { color: '#f6dcaa', fontSize: 19 },

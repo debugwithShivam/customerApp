@@ -62,6 +62,29 @@ export async function api<T = any>(path: string, options: { method?: string; bod
   return payload as T;
 }
 
+export async function fetchDocument(path: string): Promise<{ data: ArrayBuffer; fileName: string; mimeType: string }> {
+  if (!BASE_URL) throw new ApiError('Backend URL is not set yet. Add EXPO_PUBLIC_API_BASE_URL when you are ready to connect the live site.');
+  const token = await read(TOKEN_KEY);
+  const guest = token ? null : await read(GUEST_CREDENTIAL_KEY);
+  const headers: Record<string, string> = { Accept: '*/*' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (guest) headers['X-Guest-Credential'] = guest;
+  const url = path.startsWith('/api/v1/') ? `${BASE_URL}${path}` : `${BASE_URL}${API_PREFIX}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers });
+  } catch {
+    throw new ApiError('Could not reach the Amedix backend. Check the network and API URL.');
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new ApiError(payload?.message || `The server returned ${response.status}.`, response.status);
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return { data: await response.arrayBuffer(), fileName: match?.[1] ?? 'amedix-document', mimeType: response.headers.get('Content-Type') ?? 'application/octet-stream' };
+}
+
 export async function saveLoginToken(token: string): Promise<void> {
   await write(TOKEN_KEY, token);
 }

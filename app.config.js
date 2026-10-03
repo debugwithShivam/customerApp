@@ -15,5 +15,15 @@ module.exports = ({ config }) => {
     (Array.isArray(plugin) ? plugin[0] : plugin) !== 'react-native-maps'
   );
   plugins.push(['react-native-maps', mapsKey ? { androidGoogleMapsApiKey: mapsKey } : {}]);
-  return { ...appJson.expo, ...config, plugins };
+  return {
+    ...appJson.expo,
+    ...config,
+    extra: {
+      ...appJson.expo.extra,
+      ...config.extra,
+      googleMapsApiKeyConfigured: Boolean(mapsKey),
+      googleMapsAndroidEnabled: Boolean(mapsKey && process.env.GOOGLE_MAPS_ANDROID_ENABLED?.trim().toLowerCase() === 'true'),
+    },
+    plugins,
+  };
 };

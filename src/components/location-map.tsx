@@ -1,10 +1,16 @@
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { StyleSheet, View } from 'react-native';
+import Constants from 'expo-constants';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 export type MapPin = { latitude: number; longitude: number };
 type Props = { center: MapPin; selected: MapPin | null; onSelect: (pin: MapPin) => void };
 
 export function LocationMap({ center, selected, onSelect }: Props) {
+  const mapsEnabled = Constants.expoConfig?.extra?.googleMapsAndroidEnabled === true;
+  if (Platform.OS === 'android' && !mapsEnabled) {
+    return <View style={styles.frame}><Text style={styles.unavailable}>Google Maps is paused in this APK to prevent a crash. Use address search above. Enable the map after verifying the Android Maps API key and app signing restrictions.</Text></View>;
+  }
+
   const focus = selected ?? center;
   return <View style={styles.frame}>
     <MapView
@@ -29,6 +35,7 @@ const styles = StyleSheet.create(
       marginBottom: 10,
       backgroundColor: '#1d292a'
     },
-    map: { flex: 1 }
+    map: { flex: 1 },
+    unavailable: { color: '#f5f8f8', fontSize: 12, lineHeight: 18, textAlign: 'center', paddingHorizontal: 18 }
   }
 );
