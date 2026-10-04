@@ -8,7 +8,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as SplashScreen from 'expo-splash-screen';
 import { LocationMap, type MapPin } from '@/components/location-map';
-import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
+import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, readCustomerArea, saveCustomerArea, saveLoginToken } from '@/services/medical-api';
 import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
 type Page = 'Home' | 'Categories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
@@ -27,6 +27,12 @@ type Profile = { id: number; name: string; phone: string; email?: string };
 
 const C = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888' };
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const calendarDays = (month: Date): (Date | null)[] => {
+  const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
+  const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  return [...Array.from({ length: offset }, () => null), ...Array.from({ length: count }, (_, day) => new Date(month.getFullYear(), month.getMonth(), day + 1))];
+};
+const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 let demoRecordSequence = 1;
 
 const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -55,16 +61,17 @@ export function CustomerApp() {
   const [notice, setNotice] = useState('');
   const [configMessage, setConfigMessage] = useState('');
   const [config, setConfig] = useState<any>(null);
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [zoneId, setZoneId] = useState<number | null>(null);
-  const [banners, setBanners] = useState<Banner[]>([]);
+  const [zones, setZones] = useState<Zone[]>([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]);
+  const [zoneId, setZoneId] = useState<number | null>(-1);
+  const [banners, setBanners] = useState<Banner[]>(DEMO_BANNERS);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>(DEMO_CATEGORIES as unknown as Category[]);
+  const [products, setProducts] = useState<Product[]>(DEMO_PRODUCTS as unknown as Product[]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [demoCart, setDemoCart] = useState<CartItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -76,8 +83,8 @@ export function CustomerApp() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [wishlist, setWishlist] = useState<any[]>([]);
-  const [labs, setLabs] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
+  const [labs, setLabs] = useState<any[]>(DEMO_LABS);
+  const [doctors, setDoctors] = useState<any[]>(DEMO_DOCTORS);
   const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number } | null>(null);
   const [consultationMode, setConsultationMode] = useState<'online' | 'clinic'>('online');
   const [consultationReason, setConsultationReason] = useState('');
@@ -97,6 +104,10 @@ export function CustomerApp() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [bookingTime, setBookingTime] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [bookingDate, setBookingDate] = useState<Date | null>(null);
+  const [bookingSlot, setBookingSlot] = useState('');
   const [orderRows, setOrderRows] = useState<any[]>([]);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
@@ -162,14 +173,16 @@ export function CustomerApp() {
   const loadCart = useCallback(async () => {
     try {
       const response = await apiCall<{ data?: CartItem[]; summary?: Summary }>('/cart');
-      setCart(response.data ?? []);
-      if (response.summary) setSummary(response.summary);
+      const localItems = demoCart;
+      setCart([...(response.data ?? []), ...localItems]);
+      if (response.summary) {
+        const localSubtotal = localItems.reduce((total, item) => total + item.price * item.quantity, 0);
+        setSummary({ ...response.summary, subtotal: response.summary.subtotal + localSubtotal, total: response.summary.total + localSubtotal, items_count: response.summary.items_count + localItems.reduce((total, item) => total + item.quantity, 0) });
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to load your cart.');
     }
-    // apiCall is intentionally stable for this component lifecycle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [demoCart]);
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query) => {
     if (category !== null && category < 0) {
@@ -177,7 +190,7 @@ export function CustomerApp() {
       setCatalogLoading(false);
       return;
     }
-    if (selectedZone === -1 || !hasBackendUrl()) {
+    if (!selectedZone || selectedZone === -1 || !hasBackendUrl()) {
       setProducts(DEMO_PRODUCTS.filter((item) => (category === null || category < 0 ? category === null || item.category_id === category : true) && item.name.toLowerCase().includes(search.trim().toLowerCase())) as unknown as Product[]);
       setCatalogLoading(false);
       return;
@@ -187,7 +200,7 @@ export function CustomerApp() {
     if (category) params.set('category_id', String(category));
     if (search.trim()) params.set('query', search.trim());
     const suffix = `?${params.toString()}`;
-    const showHome = Boolean(selectedZone && !category && !search.trim());
+    const showHome = Boolean(selectedZone && category === null && !search.trim());
     const requests: Promise<any>[] = [apiCall<{ data?: Category[] }>('/categories')];
     if (showHome) requests.push(apiCall<any>(`/home?zone_id=${selectedZone}`));
     else requests.push(apiCall<{ data?: Product[] }>(`${search.trim() ? '/products/search' : '/products'}${suffix}`));
@@ -197,18 +210,20 @@ export function CustomerApp() {
       const categoryPayload = results[0];
       const liveCategories = (categoryPayload.data ?? []).map((item: Category) => ({ ...item, id: Number(item.id) }));
       setCategories((previous) => {
-        const next = liveCategories;
+        const next = liveCategories.length ? liveCategories : DEMO_CATEGORIES as unknown as Category[];
         return previous.length === next.length && previous.every((item, index) => item.id === next[index]?.id && item.name === next[index]?.name) ? previous : next;
       });
       if (showHome) {
         const home = results[1];
         setBanners(home.banners ?? []);
         const homeProducts = home.featured_products?.length ? home.featured_products : (home.latest_products ?? []);
-        setProducts(homeProducts);
+        if (!homeProducts.length) setCategories(DEMO_CATEGORIES as unknown as Category[]);
+        setProducts(homeProducts.length ? homeProducts : DEMO_PRODUCTS as unknown as Product[]);
       } else {
         if (!category && !search.trim()) setBanners([]);
         const liveProducts = results[1].data ?? [];
-        setProducts(liveProducts);
+        if (!liveProducts.length) setCategories(DEMO_CATEGORIES as unknown as Category[]);
+        setProducts(liveProducts.length ? liveProducts : DEMO_PRODUCTS as unknown as Product[]);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
@@ -233,17 +248,21 @@ export function CustomerApp() {
       }
       setBusy(true);
       try {
-        const [settings, cats, zoneResponse] = await Promise.all([
+        const [settings, cats, zoneResponse, savedArea] = await Promise.all([
           apiCall<any>('/config'),
           apiCall<{ data?: Category[] }>('/categories'),
           apiCall<{ data?: Zone[] }>('/api/v1/zones'),
+          readCustomerArea<{ zone_id?: number; location?: LocationChoice }>().catch(() => null),
         ]);
         if (!active) return;
         setConfig(settings);
-        const activeZones = (zoneResponse.data?.length ? zoneResponse.data : settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
-        setZones(activeZones);
-        setCategories((cats.data ?? []).map((category) => ({ ...category, id: Number(category.id) })));
-        const initialZone = activeZones.length === 1 ? activeZones[0].id : null;
+        const activeZones: Zone[] = (zoneResponse.data?.length ? zoneResponse.data : settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
+        const serviceZones: Zone[] = activeZones.length ? activeZones : [{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }];
+        setZones(serviceZones);
+        if (savedArea?.location) setSelectedLocation(savedArea.location);
+        setCategories(cats.data?.length ? cats.data.map((category) => ({ ...category, id: Number(category.id) })) : DEMO_CATEGORIES as unknown as Category[]);
+        const savedZone = serviceZones.find((zone) => zone.id === Number(savedArea?.zone_id));
+        const initialZone = savedZone?.id ?? serviceZones[0].id;
         setZoneId(initialZone);
         if (initialZone) await loadCatalog(initialZone, null, '');
         const signedIn = await hasLoginToken();
@@ -256,6 +275,9 @@ export function CustomerApp() {
         await loadCart();
       } catch (error) {
       if (active) {
+        setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
+        setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
+        setZones([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]); setZoneId(-1);
         setConfigMessage('Could not connect to the admin catalogue. Check the API connection and try again.');
         setNotice(error instanceof Error ? error.message : 'Could not connect to the admin catalogue.');
       }
@@ -288,8 +310,12 @@ export function CustomerApp() {
       } else if (next === 'Saved products') {
         const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
-        const data = await apiCall<any>(`/services${zoneId ? `?zone_id=${zoneId}` : ''}`);
-        setLabs(data.lab_tests ?? []); setDoctors(data.doctors ?? []);
+        if (!zoneId || zoneId < 0) { setLabs(DEMO_LABS); setDoctors(DEMO_DOCTORS); }
+        else {
+          const data = await apiCall<any>(`/services?zone_id=${zoneId}`);
+          setLabs(data.lab_tests?.length ? data.lab_tests : DEMO_LABS);
+          setDoctors(data.doctors?.length ? data.doctors : DEMO_DOCTORS);
+        }
       } else if (next === 'Refunds') {
         const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
       } else if (next === 'Wallet') {
@@ -332,9 +358,9 @@ export function CustomerApp() {
       if (resolution.data?.zone) {
         const zone = { ...resolution.data.zone, id: Number(resolution.data.zone.id) };
         setZones((current) => current.some((item) => item.id === zone.id) ? current : [...current, zone]);
+        void saveCustomerArea({ zone_id: zone.id, location: details }).catch(() => undefined);
         setZoneId(zone.id); setRefreshKey((value) => value + 1); setAreaPickerOpen(false); setLocationNotice('');
       } else {
-        setZoneId(null);
         setLocationNotice('This location is outside current delivery coverage. The admin must enable this area before orders can be placed.');
       }
     } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not check delivery coverage.'); }
@@ -351,13 +377,12 @@ export function CustomerApp() {
     if (!zoneId) { setNotice('Choose your delivery area before adding medicines.'); return; }
     try {
       if (product.id < 0 || zoneId < 0) {
-        setCart((items) => {
-          const existing = items.find((item) => item.product_id === product.id);
-          const next = existing ? items.map((item) => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
-          const subtotal = next.reduce((sum, item) => sum + item.price * item.quantity, 0);
-          setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: next.reduce((sum, item) => sum + item.quantity, 0) });
-          return next;
-        });
+        const existing = demoCart.find((item) => item.product_id === product.id);
+        const nextDemoCart = existing ? demoCart.map((item) => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...demoCart, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
+        const nextCart = [...cart.filter((item) => item.product_id >= 0), ...nextDemoCart];
+        setDemoCart(nextDemoCart); setCart(nextCart);
+        const subtotal = nextCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: nextCart.reduce((sum, item) => sum + item.quantity, 0) });
         setNotice(`${product.name} added to demo cart.`); return;
       }
       await apiCall('/cart/add', { method: 'POST', body: { product_id: product.id, quantity: 1, zone_id: zoneId } });
@@ -380,12 +405,11 @@ export function CustomerApp() {
   const updateQuantity = async (item: CartItem, quantity: number) => {
     try {
       if (item.product_id < 0 || item.id < 0 || zoneId === -1) {
-        setCart((items) => {
-          const next = quantity < 1 ? items.filter((entry) => entry.id !== item.id) : items.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry);
-          const subtotal = next.reduce((sum, entry) => sum + entry.price * entry.quantity, 0);
-          setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: next.reduce((sum, entry) => sum + entry.quantity, 0) });
-          return next;
-        }); return;
+        const nextCart = quantity < 1 ? cart.filter((entry) => entry.id !== item.id) : cart.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry);
+        const nextDemoCart = nextCart.filter((entry) => entry.product_id < 0);
+        setDemoCart(nextDemoCart); setCart(nextCart);
+        const subtotal = nextCart.reduce((sum, entry) => sum + entry.price * entry.quantity, 0);
+        setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: nextCart.reduce((sum, entry) => sum + entry.quantity, 0) }); return;
       }
       if (quantity < 1) await apiCall(`/cart/remove?cart_id=${item.id}`, { method: 'DELETE' });
       else await apiCall('/cart/update', { method: 'PUT', body: { cart_id: item.id, quantity } });
@@ -425,6 +449,7 @@ export function CustomerApp() {
       const number = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
       setOrders((items) => [{ id: number, order_number: number, order_status: 'demo confirmed', order_amount: summary.total, type: 'Demo medicine order', created_at: 'Just now' }, ...items]);
       setCart([]); setSummary({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
+      setDemoCart([]);
       setNotice(`Demo order ${number} placed on this device. No payment or pharmacy order was sent.`); setPage('Medical Orders'); setHistory([]); return;
     }
     if (!addressText.trim() && !addresses.length) { setNotice('Add a delivery address before checkout.'); go('Delivery addresses'); return; }
@@ -465,6 +490,7 @@ export function CustomerApp() {
 
   const submitBooking = async () => {
     if (!appointment) return;
+    if (!bookingTime.trim()) { setNotice('Choose a date and time from the calendar.'); return; }
     if (zoneId === -1 || appointment.id < 0) {
       const provider = (appointment.kind === 'doctor' ? DEMO_DOCTORS : DEMO_LABS).find((item) => item.id === appointment.id);
       const name = provider ? ('name' in provider ? provider.name : '') : '';
@@ -472,7 +498,6 @@ export function CustomerApp() {
       setOrders((items) => [{ id: recordId, order_number: `Demo · ${name}`, order_status: 'demo request received', order_amount: appointment.kind === 'doctor' ? DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Demo consultation' : 'Demo lab booking', scheduled_at: bookingTime || 'Preferred time to be confirmed' }, ...items]);
       setAppointment(null); setBookingTime(''); setNotice('Demo booking saved on this device. No provider was contacted.'); setPage('Medical Orders'); setHistory([]); return;
     }
-    if (!bookingTime.trim()) { setNotice('Add an appointment date and time.'); return; }
     if (!profile && (!customerName.trim() || !customerPhone.trim())) { setNotice('Enter your name and phone number for the booking.'); return; }
     const lab = appointment.kind === 'lab';
     try {
@@ -663,12 +688,13 @@ export function CustomerApp() {
 
   const categoryScreen = () => <>
     {section('Shop by category')}
+    <Pressable onPress={() => { setCategoryId(0); setProducts([]); setQuery(''); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); }} style={[s.categoryCard, s.allProductsCard]}><Text style={s.categoryEmoji}>▦</Text><Text style={s.categoryText}>All products</Text><Text style={s.serviceSub}>Browse every available product</Text></Pressable>
     {categories.length ? <View style={s.categoryGrid}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setProducts([]); setCatalogLoading(Boolean(zoneId)); setCategoryId(category.id); setRefreshKey((value) => value + 1); go('Category products'); }} style={s.categoryCard}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : '✚'}</Text>}<Text style={s.categoryText}>{category.name}</Text><Text style={s.serviceSub}>Browse products ›</Text></Pressable>)}</View> : empty('▦', 'No categories available', 'Categories added by the pharmacy will appear here.')}
   </>;
 
   const categoryProductsScreen = () => <>
     <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} /></View>
-    {section(categories.find((c) => c.id === categoryId)?.name ?? 'Products')}
+    {section(categoryId === null || categoryId === 0 ? 'All products' : categories.find((c) => c.id === categoryId)?.name ?? 'Products')}
     {!zoneId ? <View style={s.formCard}><Text style={s.formTitle}>Choose your delivery area</Text><Text style={s.formCopy}>Products are shown from approved pharmacies serving your area. Choose a service area to load this category.</Text>{primaryButton('Choose delivery area', openAreaPicker)}</View> : catalogLoading ? empty('⌕', 'Loading products…', 'Loading this category from the catalogue.') : products.length ? productCards() : empty('⌕', 'No products in this category', 'Admin-published products available in your selected area will appear here.')}
   </>;
 
@@ -710,7 +736,7 @@ export function CustomerApp() {
 
   const servicesScreen = (isLab: boolean) => {
     const items = isLab ? labs : doctors;
-    return <>{!zoneId && empty('⌖', 'Choose your delivery area first', 'We use your area to show available local providers.')}{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}><Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>) : !!zoneId && empty(isLab ? '⚗' : '⚕', isLab ? 'No tests in this area' : 'No doctors in this area', 'Approved providers added by the administrator will appear here.')}</>;
+    return <>{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}>{!isLab && item.image_full_url ? <Image source={{ uri: item.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : null}<Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>) : empty(isLab ? '⚗' : '⚕', isLab ? 'No tests available' : 'No doctors available', 'Sample providers are available for this demo.')}</>;
   };
 
   const loginScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</Text><Text style={s.formCopy}>Use your phone number to continue securely.</Text>{authMode === 'register' && <TextInput value={authName} onChangeText={setAuthName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} />}
@@ -719,7 +745,22 @@ export function CustomerApp() {
     <Pressable onPress={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setNotice(''); }} style={s.modeSwap}><Text style={s.modeSwapText}>{authMode === 'login' ? 'New to Amedix? Create an account' : 'Already have an account? Sign in'}</Text></Pressable>
   </View>;
 
-  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{!profile ? <><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Your full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></> : null}{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
+  const bookingSlots = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'];
+  const availableBookingSlots = bookingSlots.filter((slot) => {
+    if (!bookingDate || localDateKey(bookingDate) !== localDateKey(new Date())) return true;
+    const [hour, minute] = slot.split(':').map(Number);
+    const now = new Date();
+    return hour * 60 + minute > now.getHours() * 60 + now.getMinutes();
+  });
+  const bookingScreen = () => <View style={s.formCard}>
+    <Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text>
+    <Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>
+    {!profile ? <><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Your full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></> : null}
+    {appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}
+    <Text style={s.fieldLabel}>Preferred date and time</Text>
+    <Pressable accessibilityRole="button" onPress={() => { const today = new Date(); const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()); setCalendarMonth(new Date(today.getFullYear(), today.getMonth(), 1)); if (!bookingDate) setBookingDate(todayDate); const slots = bookingSlots.filter((slot) => { const [hour, minute] = slot.split(':').map(Number); return hour * 60 + minute > today.getHours() * 60 + today.getMinutes(); }); if (!bookingSlot) setBookingSlot(slots[0] ?? ''); setDatePickerOpen(true); }} style={s.datePickerButton}><Text style={bookingTime ? s.datePickerValue : s.datePickerPlaceholder}>{bookingTime || 'Choose a date and time'}</Text><Text style={s.seeAll}>Calendar ›</Text></Pressable>
+    {primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}
+  </View>;
 
   const pageBody = () => {
     if (page === 'Home') return homeScreen();
@@ -779,7 +820,10 @@ export function CustomerApp() {
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
     <View style={[s.tabs, { height: 59 + safeAreaInsets.bottom, paddingBottom: safeAreaInsets.bottom }]}>{navItems.map(([glyph, label, caption]) => <Pressable key={label} onPress={() => { setMenuOpen(false); setNotice(''); setHistory([]); if (label === 'Medical Orders') void openPage(label); else setPage(label); if (label === 'My Account' && !profile) setAuthMode('login'); }} style={s.tab}><Text style={[s.tabIcon, page === label && s.tabOn]}>{glyph}</Text><Text style={[s.tabLabel, page === label && s.tabOn]}>{caption}</Text></Pressable>)}</View>
-    {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AIMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>{zones.length > 0 && <><Text style={s.menuSection}>DELIVERING TO</Text>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setMenuOpen(false); setRefreshKey((value) => value + 1); }} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={[s.menuItemText, zoneId === zone.id && s.seeAll]}>{zone.name}</Text><Text style={s.arrow}>{zone.id === zoneId ? '✓' : '›'}</Text></Pressable>)}</>}
+    {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AIMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>
+      <Text style={s.menuSection}>APP SETTINGS</Text>
+      <Pressable onPress={() => { setMenuOpen(false); setPage('Appearance'); setHistory([]); }} style={s.menuItem}><Text style={s.rowIcon}>⚙</Text><Text style={s.menuItemText}>App settings</Text><Text style={s.arrow}>›</Text></Pressable>
+      <Pressable onPress={openAreaPicker} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={s.menuItemText}>Delivery location</Text><Text style={s.arrow}>›</Text></Pressable>
       <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home', 'Categories', 'Medical Orders', 'My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
       {profile ? <Pressable onPress={() => { void clearLoginToken(); setProfile(null); setMenuOpen(false); setNotice('Signed out.'); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign out</Text></Pressable> : <Pressable onPress={() => { go('Sign in'); setMenuOpen(false); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign in / Create account</Text></Pressable>}
       <Text style={s.menuFooter}>{config?.app_name ?? 'Amedix Meds'}{backendUrl() ? '\nConnected API: ' + new URL(backendUrl()).host : ''}</Text></View></View>}
@@ -800,6 +844,31 @@ export function CustomerApp() {
             {zones.length === 0 ? <Text style={s.locationCoverageNote}>No delivery areas are configured yet. You can choose a location, but the website admin must enable its area before orders can be placed.</Text> : null}
             {primaryButton(locationBusy ? 'Checking coverage...' : 'Use this location', () => void applySelectedLocation())}
           </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    <Modal visible={datePickerOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDatePickerOpen(false)}>
+      <View style={s.areaPickerModalRoot}>
+        <Pressable accessibilityLabel="Close date picker" onPress={() => setDatePickerOpen(false)} style={s.areaPickerScrim} />
+        <View style={s.areaPickerSheet}>
+          <View style={s.areaPickerHeader}><View><Text style={s.areaPickerTitle}>Choose appointment date</Text><Text style={s.areaPickerCopy}>Pick a date and available time.</Text></View><Pressable onPress={() => setDatePickerOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>
+          <View style={s.calendarMonthRow}>
+            <Pressable accessibilityLabel="Previous month" onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} disabled={calendarMonth.getFullYear() === new Date().getFullYear() && calendarMonth.getMonth() <= new Date().getMonth()} style={s.calendarNav}><Text style={s.calendarNavText}>‹</Text></Pressable>
+            <Text style={s.calendarMonthTitle}>{calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
+            <Pressable accessibilityLabel="Next month" onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={s.calendarNav}><Text style={s.calendarNavText}>›</Text></Pressable>
+          </View>
+          <View style={s.calendarGrid}>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <Text key={day} style={s.calendarWeekday}>{day}</Text>)}</View>
+          <View style={s.calendarGrid}>{calendarDays(calendarMonth).map((date, index) => {
+            if (!date) return <View key={`blank-${index}`} style={s.calendarDay} />;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const disabled = date < today;
+            const selected = bookingDate ? localDateKey(date) === localDateKey(bookingDate) : false;
+            return <Pressable key={localDateKey(date)} disabled={disabled} onPress={() => { setBookingDate(date); setBookingTime(''); const now = new Date(); const slots = bookingSlots.filter((slot) => { if (localDateKey(date) !== localDateKey(now)) return true; const [hour, minute] = slot.split(':').map(Number); return hour * 60 + minute > now.getHours() * 60 + now.getMinutes(); }); setBookingSlot(slots[0] ?? ''); }} style={[s.calendarDay, selected && s.calendarDaySelected, disabled && s.calendarDayDisabled]}><Text style={[s.calendarDayText, selected && s.calendarDayTextSelected, disabled && s.calendarDayTextDisabled]}>{date.getDate()}</Text></Pressable>;
+          })}</View>
+          <Text style={s.fieldLabel}>Available time</Text>
+          <View style={s.calendarSlots}>{availableBookingSlots.map((slot) => <Pressable key={slot} onPress={() => setBookingSlot(slot)} style={[s.calendarSlot, bookingSlot === slot && s.calendarSlotSelected]}><Text style={[s.calendarSlotText, bookingSlot === slot && s.calendarSlotTextSelected]}>{slot}</Text></Pressable>)}</View>
+          {!availableBookingSlots.length ? <Text style={s.serviceSub}>No available times remain today. Choose another date.</Text> : null}
+          <Pressable disabled={!bookingDate || !bookingSlot || !availableBookingSlots.includes(bookingSlot)} onPress={() => { if (!bookingDate || !bookingSlot) return; setBookingTime(`${localDateKey(bookingDate)} ${bookingSlot}`); setDatePickerOpen(false); }} style={[s.button, s.calendarConfirm, (!bookingDate || !bookingSlot || !availableBookingSlots.includes(bookingSlot)) && s.calendarConfirmDisabled]}><Text style={s.buttonText}>Use selected date and time</Text></Pressable>
         </View>
       </View>
     </Modal>
@@ -1110,7 +1179,15 @@ const s = StyleSheet.create({
   categoryImage: { width: 40, height: 40, borderRadius: 9 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 },
   categoryCard: { width: '48.5%', minHeight: 128, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  allProductsCard: { width: '100%', minHeight: 70, flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 12, borderColor: '#17645e' },
   categoryCardImage: { width: 58, height: 58, borderRadius: 12 },
+  datePickerButton: { minHeight: 44, borderRadius: 9, backgroundColor: '#20272b', borderWidth: 1, borderColor: '#293135', paddingHorizontal: 11, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  datePickerValue: { color: C.white, fontSize: 11, fontWeight: '700' }, datePickerPlaceholder: { color: C.muted, fontSize: 11 },
+  calendarMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12 }, calendarMonthTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
+  calendarNav: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.raised, alignItems: 'center', justifyContent: 'center' }, calendarNavText: { color: C.mint, fontSize: 24, lineHeight: 27 },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, calendarWeekday: { width: '14.28%', textAlign: 'center', color: C.muted, fontSize: 9, fontWeight: '700', paddingVertical: 7 },
+  calendarDay: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }, calendarDaySelected: { backgroundColor: C.tealDark }, calendarDayDisabled: { opacity: 0.35 }, calendarDayText: { color: C.white, fontSize: 11 }, calendarDayTextSelected: { color: 'white', fontWeight: '900' }, calendarDayTextDisabled: { color: C.muted },
+  calendarSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 8 }, calendarSlot: { width: '23%', alignItems: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line }, calendarSlotSelected: { backgroundColor: '#0b554e', borderColor: C.teal }, calendarSlotText: { color: '#d2dadd', fontSize: 10 }, calendarSlotTextSelected: { color: C.mint, fontWeight: '800' }, calendarConfirm: { marginTop: 5 }, calendarConfirmDisabled: { opacity: 0.45 },
 
   categoryEmoji: {
     color: C.teal,

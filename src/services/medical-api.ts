@@ -17,6 +17,7 @@ const BASE_URL = Platform.OS === 'android'
 const API_PREFIX = '/api/v1/medical';
 const TOKEN_KEY = 'aimedix_customer_token';
 const GUEST_CREDENTIAL_KEY = 'aimedix_guest_credential';
+const CUSTOMER_AREA_KEY = 'aimedix_customer_area';
 
 async function read(key: string): Promise<string | null> {
   if (Platform.OS === 'web') return typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
@@ -93,6 +94,16 @@ export async function fetchDocument(path: string): Promise<{ data: ArrayBuffer; 
 
 export async function saveLoginToken(token: string): Promise<void> {
   await write(TOKEN_KEY, token);
+}
+
+export async function readCustomerArea<T = any>(): Promise<T | null> {
+  const value = await read(CUSTOMER_AREA_KEY);
+  if (!value) return null;
+  try { return JSON.parse(value) as T; } catch { return null; }
+}
+
+export async function saveCustomerArea(value: unknown): Promise<void> {
+  await write(CUSTOMER_AREA_KEY, JSON.stringify(value));
 }
 
 export async function clearLoginToken(): Promise<void> {
