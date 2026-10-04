@@ -30,7 +30,19 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/appicon-splash.png",
-          "imageWidth": 300
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "android": {
+            "backgroundColor": "#FFFFFF",
+            "image": "./assets/appicon.png",
+            "imageWidth": 180
+          },
+          "ios": {
+            "backgroundColor": "#FFFFFF",
+            "image": "./assets/appicon-splash.png",
+            "imageWidth": 240,
+            "resizeMode": "contain"
+          }
         }
       ],
       "expo-secure-store"

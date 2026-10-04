@@ -6,8 +6,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as SplashScreen from 'expo-splash-screen';
 import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, saveLoginToken } from '@/services/medical-api';
+import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
 type Page = 'Home' | 'Categories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
 type Category = {
@@ -25,6 +27,7 @@ type Profile = { id: number; name: string; phone: string; email?: string };
 
 const C = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888' };
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+let demoRecordSequence = 1;
 
 const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite) || (lat1 === 0 && lon1 === 0) || (lat2 === 0 && lon2 === 0)) return null;
@@ -169,7 +172,16 @@ export function CustomerApp() {
   }, []);
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query) => {
-    if (!hasBackendUrl()) return;
+    if (category !== null && category < 0) {
+      setProducts(DEMO_PRODUCTS.filter((item) => item.category_id === category && item.name.toLowerCase().includes(search.trim().toLowerCase())) as unknown as Product[]);
+      setCatalogLoading(false);
+      return;
+    }
+    if (selectedZone === -1 || !hasBackendUrl()) {
+      setProducts(DEMO_PRODUCTS.filter((item) => (category === null || category < 0 ? category === null || item.category_id === category : true) && item.name.toLowerCase().includes(search.trim().toLowerCase())) as unknown as Product[]);
+      setCatalogLoading(false);
+      return;
+    }
     const params = new URLSearchParams({ limit: '54' });
     if (selectedZone) params.set('zone_id', String(selectedZone));
     if (category) params.set('category_id', String(category));
@@ -183,14 +195,20 @@ export function CustomerApp() {
     try {
       const results = await Promise.all(requests);
       const categoryPayload = results[0];
-      setCategories((categoryPayload.data ?? []).map((item: Category) => ({ ...item, id: Number(item.id) })));
+      const liveCategories = (categoryPayload.data ?? []).map((item: Category) => ({ ...item, id: Number(item.id) }));
+      setCategories((previous) => {
+        const next = liveCategories;
+        return previous.length === next.length && previous.every((item, index) => item.id === next[index]?.id && item.name === next[index]?.name) ? previous : next;
+      });
       if (showHome) {
         const home = results[1];
         setBanners(home.banners ?? []);
-        setProducts(home.featured_products?.length ? home.featured_products : (home.latest_products ?? []));
+        const homeProducts = home.featured_products?.length ? home.featured_products : (home.latest_products ?? []);
+        setProducts(homeProducts);
       } else {
         if (!category && !search.trim()) setBanners([]);
-        setProducts(results[1].data ?? []);
+        const liveProducts = results[1].data ?? [];
+        setProducts(liveProducts);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
@@ -198,13 +216,19 @@ export function CustomerApp() {
       setCatalogLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId, query]);
+  }, [categoryId, query, categories]);
 
   useEffect(() => {
     let active = true;
     const start = async () => {
       if (!hasBackendUrl()) {
-        setConfigMessage('Add the live website URL later as EXPO_PUBLIC_API_BASE_URL to connect the catalogue and account.');
+        setConfigMessage('Demo catalogue is active. Products and providers are sample listings; checkout and bookings are not sent to a pharmacy.');
+        setCategories(DEMO_CATEGORIES as unknown as Category[]);
+        setProducts(DEMO_PRODUCTS as unknown as Product[]);
+        setBanners(DEMO_BANNERS);
+        setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
+        setZones([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]);
+        setZoneId(-1);
         return;
       }
       setBusy(true);
@@ -231,7 +255,10 @@ export function CustomerApp() {
         }
         await loadCart();
       } catch (error) {
-        if (active) setNotice(error instanceof Error ? error.message : 'Could not connect to the backend.');
+      if (active) {
+        setConfigMessage('Could not connect to the admin catalogue. Check the API connection and try again.');
+        setNotice(error instanceof Error ? error.message : 'Could not connect to the admin catalogue.');
+      }
       } finally {
         if (active) setBusy(false);
       }
@@ -262,7 +289,7 @@ export function CustomerApp() {
         const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
         const data = await apiCall<any>(`/services${zoneId ? `?zone_id=${zoneId}` : ''}`);
-          setLabs(data.lab_tests ?? []); setDoctors(data.doctors ?? []);
+        setLabs(data.lab_tests ?? []); setDoctors(data.doctors ?? []);
       } else if (next === 'Refunds') {
         const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
       } else if (next === 'Wallet') {
@@ -323,6 +350,16 @@ export function CustomerApp() {
   const addToCart = async (product: Product) => {
     if (!zoneId) { setNotice('Choose your delivery area before adding medicines.'); return; }
     try {
+      if (product.id < 0 || zoneId < 0) {
+        setCart((items) => {
+          const existing = items.find((item) => item.product_id === product.id);
+          const next = existing ? items.map((item) => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
+          const subtotal = next.reduce((sum, item) => sum + item.price * item.quantity, 0);
+          setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: next.reduce((sum, item) => sum + item.quantity, 0) });
+          return next;
+        });
+        setNotice(`${product.name} added to demo cart.`); return;
+      }
       await apiCall('/cart/add', { method: 'POST', body: { product_id: product.id, quantity: 1, zone_id: zoneId } });
       setNotice(`${product.name} added to cart.`); await loadCart();
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not add this medicine.'); }
@@ -331,7 +368,7 @@ export function CustomerApp() {
   const openProduct = async (product: Product) => {
     setSelectedProduct(product);
     go('Product details');
-    if (product.is_demo || product.id < 0 || !hasBackendUrl()) return;
+    if (product.id < 0 || !hasBackendUrl()) return;
     try {
       const result = await apiCall<{ data?: Product }>(`/products/${product.id}${zoneId ? `?zone_id=${zoneId}` : ''}`);
       if (result.data) setSelectedProduct(result.data);
@@ -342,6 +379,14 @@ export function CustomerApp() {
 
   const updateQuantity = async (item: CartItem, quantity: number) => {
     try {
+      if (item.product_id < 0 || item.id < 0 || zoneId === -1) {
+        setCart((items) => {
+          const next = quantity < 1 ? items.filter((entry) => entry.id !== item.id) : items.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry);
+          const subtotal = next.reduce((sum, entry) => sum + entry.price * entry.quantity, 0);
+          setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: next.reduce((sum, entry) => sum + entry.quantity, 0) });
+          return next;
+        }); return;
+      }
       if (quantity < 1) await apiCall(`/cart/remove?cart_id=${item.id}`, { method: 'DELETE' });
       else await apiCall('/cart/update', { method: 'PUT', body: { cart_id: item.id, quantity } });
       await loadCart();
@@ -363,6 +408,11 @@ export function CustomerApp() {
 
   const saveAddress = async () => {
     if (!addressText.trim()) { setNotice('Enter your full delivery address.'); return; }
+    if (zoneId === -1) {
+      const address = { id: -1, label: 'Home', address: addressText.trim(), city: 'Mumbai', pincode: '400001', is_default: true };
+      setAddresses((items) => [address, ...items.filter((item) => !item.is_default)]);
+      setAddressText(''); setNotice('Demo address saved on this device.'); return;
+    }
     try {
       const payload = await apiCall<any>('/customers/addresses', { method: 'POST', body: { label: 'Home', address: addressText, contact_name: profile?.name ?? customerName, contact_phone: profile?.phone ?? customerPhone, is_default: true } });
       setAddresses(payload.data ?? []); setAddressText(''); setNotice('Delivery address saved.');
@@ -371,6 +421,12 @@ export function CustomerApp() {
 
   const placeOrder = async () => {
     if (!zoneId) { setNotice('Choose your service area before checkout.'); return; }
+    if (zoneId < 0 || cart.some((item) => item.product_id < 0)) {
+      const number = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
+      setOrders((items) => [{ id: number, order_number: number, order_status: 'demo confirmed', order_amount: summary.total, type: 'Demo medicine order', created_at: 'Just now' }, ...items]);
+      setCart([]); setSummary({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
+      setNotice(`Demo order ${number} placed on this device. No payment or pharmacy order was sent.`); setPage('Medical Orders'); setHistory([]); return;
+    }
     if (!addressText.trim() && !addresses.length) { setNotice('Add a delivery address before checkout.'); go('Delivery addresses'); return; }
     setBusy(true);
     try {
@@ -399,20 +455,32 @@ export function CustomerApp() {
   };
 
   const toggleWishlist = async (product: Product) => {
+    if (product.id < 0 || zoneId === -1) {
+      setWishlist((items) => items.some((item) => item.product_id === product.id) ? items.filter((item) => item.product_id !== product.id) : [...items, { id: product.id, product_id: product.id, name: product.name, price: product.price, discount_price: product.discount_price }]);
+      setNotice('Demo saved products updated.'); return;
+    }
     try { await apiCall('/wishlist/toggle', { method: 'POST', body: { product_id: product.id } }); const result = await apiCall<any>('/wishlist'); setWishlist(result.data ?? []); setNotice('Wishlist updated.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Wishlist could not be updated.'); }
   };
 
   const submitBooking = async () => {
-    if (!appointment || !profile) { setNotice('Sign in to book this service.'); go('Sign in'); return; }
+    if (!appointment) return;
+    if (zoneId === -1 || appointment.id < 0) {
+      const provider = (appointment.kind === 'doctor' ? DEMO_DOCTORS : DEMO_LABS).find((item) => item.id === appointment.id);
+      const name = provider ? ('name' in provider ? provider.name : '') : '';
+      const recordId = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
+      setOrders((items) => [{ id: recordId, order_number: `Demo · ${name}`, order_status: 'demo request received', order_amount: appointment.kind === 'doctor' ? DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Demo consultation' : 'Demo lab booking', scheduled_at: bookingTime || 'Preferred time to be confirmed' }, ...items]);
+      setAppointment(null); setBookingTime(''); setNotice('Demo booking saved on this device. No provider was contacted.'); setPage('Medical Orders'); setHistory([]); return;
+    }
     if (!bookingTime.trim()) { setNotice('Add an appointment date and time.'); return; }
+    if (!profile && (!customerName.trim() || !customerPhone.trim())) { setNotice('Enter your name and phone number for the booking.'); return; }
     const lab = appointment.kind === 'lab';
     try {
       await apiCall(lab ? '/lab-bookings' : '/consultations', {
         method: 'POST', body: {
-          zone_id: zoneId, customer_name: profile.name, customer_phone: profile.phone, scheduled_at: bookingTime,
+          zone_id: zoneId, customer_name: profile?.name ?? customerName.trim(), customer_phone: profile?.phone ?? customerPhone.trim(), scheduled_at: bookingTime,
           ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: consultationMode, reason: consultationReason.trim() }),
-          payment_method: 'cash_on_delivery',
+          payment_method: 'cash_on_service',
         }
       });
       setAppointment(null); setBookingTime(''); setConsultationMode('online'); setConsultationReason(''); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]); await openPage('Medical Orders');
@@ -568,10 +636,10 @@ export function CustomerApp() {
       const hasDiscount = currentPrice < product.price;
       return <Pressable key={product.id} accessibilityRole="button" accessibilityLabel={`View ${product.name} details`} onPress={() => void openProduct(product)} style={s.productCard}>
         <View style={s.productImage}>{product.thumbnail_full_url ? <Image source={{ uri: product.thumbnail_full_url }} contentFit="contain" style={s.productPhoto} /> : <Text style={s.productFallback}>💊</Text>}
-          {!product.is_demo && !product.name.startsWith('DEMO ONLY') && <Pressable onPress={(event) => { event.stopPropagation(); void toggleWishlist(product); }} style={s.heart}><Text style={s.heartText}>♡</Text></Pressable>}
+          <Pressable onPress={(event) => { event.stopPropagation(); void toggleWishlist(product); }} style={s.heart}><Text style={s.heartText}>{wishlist.some((item) => item.product_id === product.id) ? '♥' : '♡'}</Text></Pressable>
           {hasDiscount && <Text style={s.discountBadge}>{Math.round((1 - currentPrice / product.price) * 100)}% OFF</Text>}
         </View>
-        {product.is_demo || product.name.startsWith('DEMO ONLY') ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Not for sale</Text> : null}<Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
+        {product.is_demo || product.name.startsWith('DEMO ONLY') || product.name.startsWith('Demo:') ? <Text style={s.demoOnlyBadge}>DEMO SAMPLE · {product.id < 0 ? 'Local preview' : 'Admin managed'}</Text> : null}<Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
         {product.medicine_type && product.medicine_type !== 'otc' && <Text style={s.rxNote}>Prescription may be required</Text>}
         <View style={s.productFooter}><View><Text style={s.productPrice}>{money(currentPrice)}</Text>{hasDiscount && <Text style={s.mrp}>MRP <Text style={s.strike}>{money(product.price)}</Text></Text>}</View><Pressable disabled={product.stock < 1} onPress={(event) => { event.stopPropagation(); void addToCart(product); }} style={[s.addButton, product.stock < 1 && s.disabled]}><Text style={s.addButtonText}>{product.stock < 1 ? 'Out' : '+'}</Text></Pressable></View>
       </Pressable>;
@@ -607,10 +675,10 @@ export function CustomerApp() {
   const productDetailScreen = () => {
     if (!selectedProduct) return empty('Rx', 'Product unavailable', 'Go back and choose another product.');
     const currentPrice = selectedProduct.discount_price && selectedProduct.discount_price > 0 ? selectedProduct.discount_price : selectedProduct.price;
-    const demo = selectedProduct.is_demo || selectedProduct.id < 0 || selectedProduct.name.startsWith('DEMO ONLY');
+    const demo = selectedProduct.id < 0 || (zoneId ?? 0) < 0;
     return <View style={s.formCard}>
       {selectedProduct.thumbnail_full_url ? <Image source={{ uri: selectedProduct.thumbnail_full_url }} contentFit="contain" style={s.detailPhoto} /> : <View style={[s.detailPhoto, s.detailPhotoFallback]}><Text style={s.productFallback}>💊</Text></View>}
-      {demo ? <Text style={s.demoOnlyBadge}>DEMO ONLY · Not for sale</Text> : null}
+      {demo || selectedProduct.name.startsWith('Demo:') ? <Text style={s.demoOnlyBadge}>DEMO SAMPLE · {selectedProduct.id < 0 ? 'Local preview' : 'Admin managed'}</Text> : null}
       <Text style={s.productCategory}>{selectedProduct.category_name ?? 'Healthcare'}</Text>
       <Text style={s.detailTitle}>{selectedProduct.name}</Text>
       {selectedProduct.unit ? <Text style={s.formCopy}>Pack: {selectedProduct.unit}</Text> : null}
@@ -618,11 +686,12 @@ export function CustomerApp() {
       {selectedProduct.medicine_type && selectedProduct.medicine_type !== 'otc' ? <Text style={s.rxNote}>Prescription may be required</Text> : null}
       <Text style={s.fieldLabel}>Product information</Text>
       <Text style={s.detailDescription}>{selectedProduct.description || 'Product information will be provided by the pharmacy.'}</Text>
-      {demo ? <Text style={s.formCopy}>This is a sample product and cannot be added to your cart.</Text> : primaryButton(selectedProduct.stock < 1 ? 'Out of stock' : 'Add to cart', () => void addToCart(selectedProduct))}
+      {primaryButton(selectedProduct.stock < 1 ? 'Out of stock' : demo ? 'Add to demo cart' : 'Add to cart', () => void addToCart(selectedProduct))}
     </View>;
   };
 
   const cartScreen = () => <>
+    {!profile && <View style={s.formCard}><Text style={s.fieldLabel}>Contact details for your order</Text><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></View>}
     {summary.extra_discount_threshold > 0 && <View style={s.cartNudge}><Text style={s.nudgeGlyph}>✦</Text><Text style={s.nudgeText}>Add {money(summary.extra_discount_threshold)} more to unlock FLAT 20% OFF on your entire order!</Text></View>}
     {cart.length ? cart.map((item) => <View key={item.id} style={s.cartRow}>{item.thumbnail_full_url ? <Image source={{ uri: item.thumbnail_full_url }} contentFit="contain" style={s.cartImage} /> : <View style={[s.cartImage, s.cartFallback]}><Text style={{ color: C.teal, fontSize: 25 }}>💊</Text></View>}<View style={{ flex: 1 }}><Text style={s.cartName}>{item.name}</Text><Text style={s.cartSub}>{money(item.price)}{item.unit ? ` · ${item.unit}` : ''}</Text><View style={s.qtyRow}><Pressable onPress={() => void updateQuantity(item, item.quantity - 1)} style={s.qtyButton}><Text style={s.qtyText}>−</Text></Pressable><Text style={s.qtyValue}>{item.quantity}</Text><Pressable onPress={() => void updateQuantity(item, item.quantity + 1)} style={s.qtyButton}><Text style={s.qtyText}>+</Text></Pressable><Pressable onPress={() => void updateQuantity(item, 0)} style={s.remove}><Text style={s.removeText}>Remove</Text></Pressable></View></View><Text style={s.productPrice}>{money(item.price * item.quantity)}</Text></View>) : empty('▱', 'Your cart is empty', 'Add medicines to get started.')}
     {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine label="Item total" value={money(summary.subtotal)} /><SummaryLine label="Medicine discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine label="Taxes" value={money(summary.tax_total)} /><SummaryLine label="Delivery" value="FREE" green /><SummaryLine label="Platform & safety packaging" value={money(summary.platform_fee)} /><View style={s.summaryDivider} /><SummaryLine label="To pay" value={money(summary.total)} strong />
@@ -650,7 +719,7 @@ export function CustomerApp() {
     <Pressable onPress={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setNotice(''); }} style={s.modeSwap}><Text style={s.modeSwapText}>{authMode === 'login' ? 'New to Amedix? Create an account' : 'Already have an account? Sign in'}</Text></Pressable>
   </View>;
 
-  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
+  const bookingScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text><Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>{!profile ? <><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Your full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></> : null}{appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}<Text style={s.fieldLabel}>Preferred date and time</Text><TextInput value={bookingTime} onChangeText={setBookingTime} placeholder="YYYY-MM-DD HH:MM" placeholderTextColor={C.muted} style={s.input} />{primaryButton('Send booking request', () => void submitBooking())}{primaryButton('Cancel', () => { setAppointment(null); back(); }, true)}</View>;
 
   const pageBody = () => {
     if (page === 'Home') return homeScreen();
@@ -705,7 +774,7 @@ export function CustomerApp() {
   // available from the bag button so shopping and checkout are still reachable.
   const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
 
-  return <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
+  return <SafeAreaView onLayout={() => { if (Platform.OS !== 'web') void SplashScreen.hideAsync(); }} style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
     <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AIMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
