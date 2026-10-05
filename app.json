@@ -1,62 +1,54 @@
 {
   "expo": {
-    "name": "AIMEDIX MEDS HEALTHCARE",
-    "slug": "customerApp",
+    "name": "AIMEDIX MEDS MEDIX Patner",
+    "slug": "aimedix-partner",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
-    "scheme": "customerapp",
+    "scheme": "aimedixpartner",
     "userInterfaceStyle": "automatic",
+
     "ios": {
+      "bundleIdentifier": "com.aimedixmeds.partnerapp",
       "icon": "./assets/appicon.png"
     },
+
     "android": {
+      "package": "com.aimedixmeds.partnerapp",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/appicon.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.harshsppandey.customerApp"
+      "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/appicon.png"
     },
+
     "plugins": [
       "expo-router",
-      "react-native-maps",
       [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/appicon-splash.png",
-          "imageWidth": 240,
-          "resizeMode": "contain",
-          "android": {
-            "backgroundColor": "#FFFFFF",
-            "image": "./assets/appicon.png",
-            "imageWidth": 180
-          },
-          "ios": {
-            "backgroundColor": "#FFFFFF",
-            "image": "./assets/appicon-splash.png",
-            "imageWidth": 240,
-            "resizeMode": "contain"
-          }
+          "imageWidth": 300
         }
       ],
       "expo-secure-store"
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "35bcb8ac-8262-4529-bdd2-c8f769a96c4b"
-      }
+      "router": {}
     },
+
     "owner": "harshpandeyxande"
   }
 }
