@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
@@ -8,16 +8,24 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as SplashScreen from 'expo-splash-screen';
 import { LocationMap, type MapPin } from '@/components/location-map';
-import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, readCustomerArea, saveCustomerArea, saveLoginToken } from '@/services/medical-api';
+import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, readAppearanceSetting, readCustomerArea, saveAppearanceSetting, saveCustomerArea, saveLoginToken } from '@/services/medical-api';
 import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
-type Page = 'Home' | 'Categories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+type Subcategory = {
+  id: number;
+  category_id: number;
+  name: string;
+  slug?: string;
+  image_full_url?: string;
+};
 type Category = {
   id: number;
   name: string;
-  image_full_url?: string
+  image_full_url?: string;
+  subcategories?: Subcategory[];
 };
-type Product = { id: number; name: string; description?: string; unit?: string; price: number; discount_price?: number | null; stock: number; medicine_type?: string; category_name?: string; thumbnail_full_url?: string; is_demo?: boolean };
+type Product = { id: number; name: string; description?: string; unit?: string; price: number; discount_price?: number | null; stock: number; medicine_type?: string; category_id?: number; category_name?: string; subcategory_id?: number | null; subcategory_name?: string; thumbnail_full_url?: string; is_demo?: boolean };
 type Banner = { id: number; title?: string; subtitle?: string; image_full_url?: string; action_text?: string };
 type CartItem = { id: number; product_id: number; name: string; quantity: number; price: number; unit?: string; thumbnail_full_url?: string; stock?: number };
 type Zone = { id: number; name: string; city?: string; state?: string; pincode?: string; latitude?: number | string; longitude?: number | string };
@@ -25,7 +33,9 @@ type LocationChoice = MapPin & { address: string; pincode?: string; city?: strin
 type Summary = { subtotal: number; medicine_discount: number; coupon_discount: number; total_discount: number; tax_total: number; delivery_charge: number; platform_fee: number; extra_discount_threshold: number; total: number; items_count: number };
 type Profile = { id: number; name: string; phone: string; email?: string };
 
-const C = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888' };
+const darkPalette = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888', headerLine: '#152022', searchLine: '#20292c', arrow: '#89969b', demoBadge: '#ffca72', dot: '#415151', reportLine: '#27655f', reportBg: '#172423', allProductsLine: '#17645e', inputBg: '#20272b', inputLine: '#293135', slotOnBg: '#0b554e', softText: '#d2dadd', textSofter: '#c3cccf', chipOnBg: '#064d48', zoneOnBg: '#063d3a', zoneText: '#bdc7ca', productLine: '#1d272a', tileBg: '#20282c', heartBg: '#0c1416', rxNote: '#e5bd80', disabledBg: '#454c4e', tabsBorder: '#20282b', tabsBg: '#090e10', tabIcon: '#728085', tabLabel: '#879297', configBg: '#15322e', configText: '#b3c5c5', noticeBg: '#3d2c16', noticeText: '#f6dcaa', emptyTitle: '#e5eeee', nudgeBg: '#0b4239', nudgeGlyph: '#8ef6cc', nudgeText: '#d4ffec', qtyBg: '#253033', summaryLabel: '#b1bcbe', summaryValue: '#e8eeee', green: '#78e4aa', loginPromptBg: '#123433', outlineLine: '#185350', fieldLabel: '#dbe3e4', chatMineBg: '#075d55', menuBg: '#0b1113', menuBorder: '#263135', menuSection: '#78878c', menuItemText: '#e0e8e9', menuItemLine: '#1b2629', menuSignoutLine: '#20413e', menuFooter: '#657277', sheetBg: '#101719' };
+const lightPalette: Palette = { bg: '#f1f5f4', card: '#ffffff', raised: '#e9efee', line: '#d8e2e0', teal: '#00968a', tealDark: '#0a8f86', mint: '#066d64', muted: '#5c6a6d', white: '#152120', red: '#c0392b', headerLine: '#e0e7e6', searchLine: '#dbe3e2', arrow: '#667478', demoBadge: '#8a6116', dot: '#b6c2c1', reportLine: '#a4d8d2', reportBg: '#e6f3f1', allProductsLine: '#a4d8d2', inputBg: '#eef3f2', inputLine: '#d8e2e0', slotOnBg: '#c4ebe6', softText: '#3c4a4c', textSofter: '#44514f', chipOnBg: '#d2efeb', zoneOnBg: '#d2efeb', zoneText: '#4c5a5c', productLine: '#e3e9e8', tileBg: '#e9efee', heartBg: '#f6f9f8', rxNote: '#8a6116', disabledBg: '#bac3c2', tabsBorder: '#e0e7e6', tabsBg: '#ffffff', tabIcon: '#7f8d90', tabLabel: '#6a777a', configBg: '#dcf0ec', configText: '#3d5a55', noticeBg: '#fbeecd', noticeText: '#7a5410', emptyTitle: '#223030', nudgeBg: '#d7f2ea', nudgeGlyph: '#0c7d5f', nudgeText: '#0d5c48', qtyBg: '#dee5e4', summaryLabel: '#4a595b', summaryValue: '#223030', green: '#0c8a5f', loginPromptBg: '#d9efec', outlineLine: '#a4d8d2', fieldLabel: '#3c4a4c', chatMineBg: '#c4ebe6', menuBg: '#ffffff', menuBorder: '#dbe3e2', menuSection: '#6a777a', menuItemText: '#223030', menuItemLine: '#e9efee', menuSignoutLine: '#a4d8d2', menuFooter: '#7f8d90', sheetBg: '#ffffff' };
+type Palette = typeof darkPalette;
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const calendarDays = (month: Date): (Date | null)[] => {
   const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
@@ -70,6 +80,7 @@ export function CustomerApp() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [demoCart, setDemoCart] = useState<CartItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
@@ -107,12 +118,19 @@ export function CustomerApp() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [bookingDate, setBookingDate] = useState<Date | null>(null);
+  const [deliveryType, setDeliveryType] = useState<'express' | 'slot' | 'same_day' | 'next_day'>('express');
+  const [deliverySlot, setDeliverySlot] = useState<string>('30-60 mins Express');
   const [bookingSlot, setBookingSlot] = useState('');
   const [orderRows, setOrderRows] = useState<any[]>([]);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [appearance, setAppearance] = useState('Use device setting');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const systemColorScheme = useColorScheme();
+  const isLightTheme = appearance === 'Light' || (appearance === 'Use device setting' && systemColorScheme === 'light');
+  const C: Palette = isLightTheme ? lightPalette : darkPalette;
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const go = (next: Page) => { setMenuOpen(false); setHistory((items) => [...items, page]); setPage(next); setNotice(''); };
   const back = () => { setPage(history.at(-1) ?? 'Home'); setHistory((items) => items.slice(0, -1)); setNotice(''); };
@@ -184,23 +202,31 @@ export function CustomerApp() {
     }
   }, [demoCart]);
 
-  const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query) => {
-    if (category !== null && category < 0) {
-      setProducts(DEMO_PRODUCTS.filter((item) => item.category_id === category && item.name.toLowerCase().includes(search.trim().toLowerCase())) as unknown as Product[]);
-      setCatalogLoading(false);
-      return;
-    }
-    if (!selectedZone || selectedZone === -1 || !hasBackendUrl()) {
-      setProducts(DEMO_PRODUCTS.filter((item) => (category === null || category < 0 ? category === null || item.category_id === category : true) && item.name.toLowerCase().includes(search.trim().toLowerCase())) as unknown as Product[]);
+  const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query, subcategory = selectedSubcategoryId) => {
+    const isLocalOrDemo = !selectedZone || selectedZone === -1 || !hasBackendUrl() || (category !== null && category < 0);
+    if (isLocalOrDemo) {
+      let filtered = DEMO_PRODUCTS;
+      if (category !== null && category !== 0) {
+        filtered = filtered.filter((item) => item.category_id === category);
+      }
+      if (subcategory !== null && subcategory !== 0) {
+        filtered = filtered.filter((item) => item.subcategory_id === subcategory);
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        filtered = filtered.filter((item) => item.name.toLowerCase().includes(q) || (item.subcategory_name && item.subcategory_name.toLowerCase().includes(q)));
+      }
+      setProducts(filtered as unknown as Product[]);
       setCatalogLoading(false);
       return;
     }
     const params = new URLSearchParams({ limit: '54' });
     if (selectedZone) params.set('zone_id', String(selectedZone));
     if (category) params.set('category_id', String(category));
+    if (subcategory) params.set('subcategory_id', String(subcategory));
     if (search.trim()) params.set('query', search.trim());
     const suffix = `?${params.toString()}`;
-    const showHome = Boolean(selectedZone && category === null && !search.trim());
+    const showHome = Boolean(selectedZone && category === null && !subcategory && !search.trim());
     const requests: Promise<any>[] = [apiCall<{ data?: Category[] }>('/categories')];
     if (showHome) requests.push(apiCall<any>(`/home?zone_id=${selectedZone}`));
     else requests.push(apiCall<{ data?: Product[] }>(`${search.trim() ? '/products/search' : '/products'}${suffix}`));
@@ -220,10 +246,16 @@ export function CustomerApp() {
         if (!homeProducts.length) setCategories(DEMO_CATEGORIES as unknown as Category[]);
         setProducts(homeProducts.length ? homeProducts : DEMO_PRODUCTS as unknown as Product[]);
       } else {
-        if (!category && !search.trim()) setBanners([]);
+        if (!category && !subcategory && !search.trim()) setBanners([]);
         const liveProducts = results[1].data ?? [];
-        if (!liveProducts.length) setCategories(DEMO_CATEGORIES as unknown as Category[]);
-        setProducts(liveProducts.length ? liveProducts : DEMO_PRODUCTS as unknown as Product[]);
+        if (!liveProducts.length) {
+          let fallback = DEMO_PRODUCTS;
+          if (category) fallback = fallback.filter((p) => p.category_id === category);
+          if (subcategory) fallback = fallback.filter((p) => p.subcategory_id === subcategory);
+          setProducts(fallback as unknown as Product[]);
+        } else {
+          setProducts(liveProducts);
+        }
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
@@ -231,7 +263,7 @@ export function CustomerApp() {
       setCatalogLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId, query, categories]);
+  }, [categoryId, selectedSubcategoryId, query, categories]);
 
   useEffect(() => {
     let active = true;
@@ -291,10 +323,15 @@ export function CustomerApp() {
   }, []);
 
   useEffect(() => {
-    if (!zoneId || !hasBackendUrl()) return;
-    const timer = setTimeout(() => { void loadCatalog(zoneId, categoryId, query); }, 320);
+    void readAppearanceSetting().then((saved) => { if (saved) setAppearance(saved); }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadCatalog(zoneId ?? -1, categoryId, query, selectedSubcategoryId);
+    }, 150);
     return () => clearTimeout(timer);
-  }, [zoneId, categoryId, query, refreshKey, loadCatalog]);
+  }, [zoneId, categoryId, selectedSubcategoryId, query, refreshKey, loadCatalog]);
 
   const openPage = async (next: Page) => {
     go(next);
@@ -447,7 +484,7 @@ export function CustomerApp() {
     if (!zoneId) { setNotice('Choose your service area before checkout.'); return; }
     if (zoneId < 0 || cart.some((item) => item.product_id < 0)) {
       const number = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
-      setOrders((items) => [{ id: number, order_number: number, order_status: 'demo confirmed', order_amount: summary.total, type: 'Demo medicine order', created_at: 'Just now' }, ...items]);
+      setOrders((items) => [{ id: number, order_number: number, order_status: 'demo confirmed', order_amount: summary.total, type: 'Demo medicine order', created_at: 'Just now', delivery_type: deliveryType, delivery_slot: deliverySlot }, ...items]);
       setCart([]); setSummary({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
       setDemoCart([]);
       setNotice(`Demo order ${number} placed on this device. No payment or pharmacy order was sent.`); setPage('Medical Orders'); setHistory([]); return;
@@ -464,6 +501,8 @@ export function CustomerApp() {
           address: addressText || undefined,
           payment_method: 'cash_on_delivery',
           age_confirmed: true,
+          delivery_type: deliveryType,
+          delivery_slot: deliverySlot,
         }
       });
       setNotice(payload.message ?? 'Your order has been placed.'); setPage('Medical Orders'); setHistory([]); await loadCart();
@@ -682,21 +721,50 @@ export function CustomerApp() {
       <View style={s.promoShade} /><Text style={s.promoBrand}>AIMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
     </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : null}
     {zones.length > 1 && <><Pressable accessibilityRole="button" accessibilityLabel="Choose your service area on map" onPress={openAreaPicker} style={s.sectionHead}><Text style={s.sectionTitle}>Choose your service area</Text><Text style={s.seeAll}>Choose on map &gt;</Text></Pressable><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
-    {section('Shop by category', () => { setCategoryId(null); go('Categories'); })}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.slice(0, 8).map((category) => <Pressable key={category.id} onPress={() => { setProducts([]); setCatalogLoading(Boolean(zoneId)); setCategoryId(category.id); setRefreshKey((value) => value + 1); go('Category products'); }} style={s.categoryTile}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text>}<Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
+    {section('Shop by category', () => { setCategoryId(null); setSelectedSubcategoryId(null); go('Categories'); })}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); setSelectedSubcategoryId(null); if (category.subcategories && category.subcategories.length > 0) { go('Subcategories'); } else { setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); } }} style={s.categoryTile}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text>}<Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
     {section('Featured medicines', () => go('Categories'))}{productCards()}
   </>;
 
   const categoryScreen = () => <>
     {section('Shop by category')}
-    <Pressable onPress={() => { setCategoryId(0); setProducts([]); setQuery(''); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); }} style={[s.categoryCard, s.allProductsCard]}><Text style={s.categoryEmoji}>▦</Text><Text style={s.categoryText}>All products</Text><Text style={s.serviceSub}>Browse every available product</Text></Pressable>
-    {categories.length ? <View style={s.categoryGrid}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setProducts([]); setCatalogLoading(Boolean(zoneId)); setCategoryId(category.id); setRefreshKey((value) => value + 1); go('Category products'); }} style={s.categoryCard}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : '✚'}</Text>}<Text style={s.categoryText}>{category.name}</Text><Text style={s.serviceSub}>Browse products ›</Text></Pressable>)}</View> : empty('▦', 'No categories available', 'Categories added by the pharmacy will appear here.')}
+    <Pressable onPress={() => { setCategoryId(0); setSelectedSubcategoryId(null); setProducts([]); setQuery(''); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); }} style={[s.categoryCard, s.allProductsCard]}><Text style={s.categoryEmoji}>▦</Text><View style={{ flex: 1 }}><Text style={s.categoryText}>All products</Text><Text style={s.serviceSub}>Browse every available product across all categories</Text></View></Pressable>
+    {categories.length ? <View style={s.categoryGrid}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); setSelectedSubcategoryId(null); if (category.subcategories && category.subcategories.length > 0) { go('Subcategories'); } else { setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); } }} style={s.categoryCard}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : '✚'}</Text>}<Text style={s.categoryText}>{category.name}</Text><Text style={s.serviceSub}>{category.subcategories && category.subcategories.length > 0 ? `${category.subcategories.length} subcategories ›` : 'Browse products ›'}</Text></Pressable>)}</View> : empty('▦', 'No categories available', 'Categories added by the pharmacy will appear here.')}
   </>;
 
-  const categoryProductsScreen = () => <>
-    <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} /></View>
-    {section(categoryId === null || categoryId === 0 ? 'All products' : categories.find((c) => c.id === categoryId)?.name ?? 'Products')}
-    {!zoneId ? <View style={s.formCard}><Text style={s.formTitle}>Choose your delivery area</Text><Text style={s.formCopy}>Products are shown from approved pharmacies serving your area. Choose a service area to load this category.</Text>{primaryButton('Choose delivery area', openAreaPicker)}</View> : catalogLoading ? empty('⌕', 'Loading products…', 'Loading this category from the catalogue.') : products.length ? productCards() : empty('⌕', 'No products in this category', 'Admin-published products available in your selected area will appear here.')}
-  </>;
+  const subcategoriesScreen = () => {
+    const currentCategory = categories.find((c) => c.id === categoryId);
+    const subList = currentCategory?.subcategories ?? [];
+    return <>
+      {section(`${currentCategory?.name ?? 'Category'} subcategories`)}
+      <Pressable onPress={() => { setSelectedSubcategoryId(null); setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((v) => v + 1); go('Category products'); }} style={[s.categoryCard, s.allProductsCard]}><Text style={s.categoryEmoji}>▦</Text><View style={{ flex: 1 }}><Text style={s.categoryText}>All {currentCategory?.name ?? 'products'}</Text><Text style={s.serviceSub}>Browse all products in this category ›</Text></View></Pressable>
+      {subList.length ? <View style={s.categoryGrid}>{subList.map((subcategory) => <Pressable key={subcategory.id} onPress={() => { setSelectedSubcategoryId(subcategory.id); setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((v) => v + 1); go('Category products'); }} style={s.categoryCard}>{subcategory.image_full_url ? <Image source={{ uri: subcategory.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : <Text style={s.categoryEmoji}>💊</Text>}<Text style={s.categoryText}>{subcategory.name}</Text><Text style={s.serviceSub}>View products ›</Text></Pressable>)}</View> : empty('▦', 'No subcategories found', 'Browse all products in this category.')}
+    </>;
+  };
+
+  const categoryProductsScreen = () => {
+    const currentCategory = categories.find((c) => c.id === categoryId);
+    const subList = currentCategory?.subcategories ?? [];
+    const activeSub = subList.find((s) => s.id === selectedSubcategoryId);
+
+    return <>
+      <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} /></View>
+      {subList.length > 0 && (
+        <View style={{ marginBottom: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+            <Pressable onPress={() => { setSelectedSubcategoryId(null); setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((v) => v + 1); }} style={[s.filterChip, selectedSubcategoryId === null && s.filterChipOn]}><Text style={[s.filterText, selectedSubcategoryId === null && s.filterTextOn]}>All {currentCategory?.name ?? 'Products'}</Text></Pressable>
+            {subList.map((sub) => {
+              const isSelected = selectedSubcategoryId === sub.id;
+              return (
+                <Pressable key={sub.id} onPress={() => { setSelectedSubcategoryId(sub.id); setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((v) => v + 1); }} style={[s.filterChip, isSelected && s.filterChipOn]}><Text style={[s.filterText, isSelected && s.filterTextOn]}>{sub.name}</Text></Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+      {section(activeSub ? `${currentCategory?.name ?? 'Category'} › ${activeSub.name}` : (categoryId === null || categoryId === 0 ? 'All products' : currentCategory?.name ?? 'Products'))}
+      {!zoneId ? <View style={s.formCard}><Text style={s.formTitle}>Choose your delivery area</Text><Text style={s.formCopy}>Products are shown from approved pharmacies serving your area. Choose a service area to load this category.</Text>{primaryButton('Choose delivery area', openAreaPicker)}</View> : catalogLoading ? empty('⌕', 'Loading products…', 'Loading this category from the catalogue.') : products.length ? productCards() : empty('⌕', 'No products in this category', 'Admin-published products available in your selected area will appear here.')}
+    </>;
+  };
 
   const productDetailScreen = () => {
     if (!selectedProduct) return empty('Rx', 'Product unavailable', 'Go back and choose another product.');
@@ -720,8 +788,74 @@ export function CustomerApp() {
     {!profile && <View style={s.formCard}><Text style={s.fieldLabel}>Contact details for your order</Text><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></View>}
     {summary.extra_discount_threshold > 0 && <View style={s.cartNudge}><Text style={s.nudgeGlyph}>✦</Text><Text style={s.nudgeText}>Add {money(summary.extra_discount_threshold)} more to unlock FLAT 20% OFF on your entire order!</Text></View>}
     {cart.length ? cart.map((item) => <View key={item.id} style={s.cartRow}>{item.thumbnail_full_url ? <Image source={{ uri: item.thumbnail_full_url }} contentFit="contain" style={s.cartImage} /> : <View style={[s.cartImage, s.cartFallback]}><Text style={{ color: C.teal, fontSize: 25 }}>💊</Text></View>}<View style={{ flex: 1 }}><Text style={s.cartName}>{item.name}</Text><Text style={s.cartSub}>{money(item.price)}{item.unit ? ` · ${item.unit}` : ''}</Text><View style={s.qtyRow}><Pressable onPress={() => void updateQuantity(item, item.quantity - 1)} style={s.qtyButton}><Text style={s.qtyText}>−</Text></Pressable><Text style={s.qtyValue}>{item.quantity}</Text><Pressable onPress={() => void updateQuantity(item, item.quantity + 1)} style={s.qtyButton}><Text style={s.qtyText}>+</Text></Pressable><Pressable onPress={() => void updateQuantity(item, 0)} style={s.remove}><Text style={s.removeText}>Remove</Text></Pressable></View></View><Text style={s.productPrice}>{money(item.price * item.quantity)}</Text></View>) : empty('▱', 'Your cart is empty', 'Add medicines to get started.')}
-    {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine label="Item total" value={money(summary.subtotal)} /><SummaryLine label="Medicine discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine label="Taxes" value={money(summary.tax_total)} /><SummaryLine label="Delivery" value="FREE" green /><SummaryLine label="Platform & safety packaging" value={money(summary.platform_fee)} /><View style={s.summaryDivider} /><SummaryLine label="To pay" value={money(summary.total)} strong />
+    {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine styles={s} label="Item total" value={money(summary.subtotal)} /><SummaryLine styles={s} label="Medicine discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine styles={s} label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine styles={s} label="Taxes" value={money(summary.tax_total)} /><SummaryLine styles={s} label="Delivery" value={deliveryType === 'express' ? 'FREE Express' : 'FREE'} green /><SummaryLine styles={s} label="Platform & safety packaging" value={money(summary.platform_fee)} /><View style={s.summaryDivider} /><SummaryLine styles={s} label="To pay" value={money(summary.total)} strong />
       {!profile && <Pressable onPress={() => go('Sign in')} style={s.loginPrompt}><Text style={s.loginPromptText}>Sign in to complete checkout and save your orders  ›</Text></Pressable>}
+      <Text style={[s.checkoutAddressTitle, { marginTop: 14 }]}>Delivery speed & timing</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        <Pressable
+          onPress={() => { setDeliveryType('express'); setDeliverySlot('30-60 mins Express'); }}
+          style={[s.choice, { flex: 1, minWidth: '47%', paddingVertical: 10, paddingHorizontal: 10, backgroundColor: deliveryType === 'express' ? C.slotOnBg : C.card, borderColor: deliveryType === 'express' ? C.teal : C.line }]}
+        >
+          <Text style={{ fontSize: 16 }}>⚡</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'express' ? C.mint : C.white }]}>30-60 mint Express</Text>
+            <Text style={{ fontSize: 9, color: C.muted }}>Fastest local delivery</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => { setDeliveryType('slot'); if (!['10:00 AM - 12:00 PM', '12:00 PM - 02:00 PM', '02:00 PM - 04:00 PM', '04:00 PM - 06:00 PM', '06:00 PM - 08:00 PM', '08:00 PM - 10:00 PM'].includes(deliverySlot)) setDeliverySlot('10:00 AM - 12:00 PM'); }}
+          style={[s.choice, { flex: 1, minWidth: '47%', paddingVertical: 10, paddingHorizontal: 10, backgroundColor: deliveryType === 'slot' ? C.slotOnBg : C.card, borderColor: deliveryType === 'slot' ? C.teal : C.line }]}
+        >
+          <Text style={{ fontSize: 16 }}>⏰</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'slot' ? C.mint : C.white }]}>Every 2 hrs Slot</Text>
+            <Text style={{ fontSize: 9, color: C.muted }}>10 AM to 10 PM</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => { setDeliveryType('same_day'); setDeliverySlot('Same Day Delivery'); }}
+          style={[s.choice, { flex: 1, minWidth: '47%', paddingVertical: 10, paddingHorizontal: 10, backgroundColor: deliveryType === 'same_day' ? C.slotOnBg : C.card, borderColor: deliveryType === 'same_day' ? C.teal : C.line }]}
+        >
+          <Text style={{ fontSize: 16 }}>🚚</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'same_day' ? C.mint : C.white }]}>Same Day</Text>
+            <Text style={{ fontSize: 9, color: C.muted }}>Delivered by today</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => { setDeliveryType('next_day'); setDeliverySlot('Next Day Delivery'); }}
+          style={[s.choice, { flex: 1, minWidth: '47%', paddingVertical: 10, paddingHorizontal: 10, backgroundColor: deliveryType === 'next_day' ? C.slotOnBg : C.card, borderColor: deliveryType === 'next_day' ? C.teal : C.line }]}
+        >
+          <Text style={{ fontSize: 16 }}>📦</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'next_day' ? C.mint : C.white }]}>Next Day</Text>
+            <Text style={{ fontSize: 9, color: C.muted }}>Delivered tomorrow</Text>
+          </View>
+        </Pressable>
+      </View>
+      {deliveryType === 'slot' && (
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>Choose a 2-hour delivery slot (10 AM - 10 PM):</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {['10:00 AM - 12:00 PM', '12:00 PM - 02:00 PM', '02:00 PM - 04:00 PM', '04:00 PM - 06:00 PM', '06:00 PM - 08:00 PM', '08:00 PM - 10:00 PM'].map((slot) => (
+              <Pressable
+                key={slot}
+                onPress={() => setDeliverySlot(slot)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  backgroundColor: deliverySlot === slot ? C.slotOnBg : C.card,
+                  borderColor: deliverySlot === slot ? C.teal : C.line,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: deliverySlot === slot ? '700' : '500', color: deliverySlot === slot ? C.mint : C.white }}>{slot}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
       <Text style={s.checkoutAddressTitle}>Delivery address</Text><TextInput value={addressText} onChangeText={setAddressText} placeholder="House, street, area, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Placing order…' : `Place order · ${money(summary.total)}`, () => void placeOrder())}</View>}
   </>;
 
@@ -732,7 +866,7 @@ export function CustomerApp() {
     ] as [Page, string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
   </>;
 
-  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}<Pressable onPress={() => void openDoctorChat(order)}><Text style={s.seeAll}>Chat with doctor ›</Text></Pressable>{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
+  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{Boolean(order.delivery_slot || order.delivery_type) && <View style={{ alignSelf: 'flex-start', marginVertical: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: C.slotOnBg }}><Text style={{ color: C.mint, fontSize: 10, fontWeight: '700' }}>{order.delivery_slot || (order.delivery_type === 'express' ? '⚡ 30-60 mins Express' : order.delivery_type === 'same_day' ? '🚚 Same Day' : order.delivery_type === 'next_day' ? '📦 Next Day' : 'Delivery Slot')}</Text></View>}{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}<Pressable onPress={() => void openDoctorChat(order)}><Text style={s.seeAll}>Chat with doctor ›</Text></Pressable>{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
 
   const servicesScreen = (isLab: boolean) => {
     const items = isLab ? labs : doctors;
@@ -765,6 +899,7 @@ export function CustomerApp() {
   const pageBody = () => {
     if (page === 'Home') return homeScreen();
     if (page === 'Categories') return categoryScreen();
+    if (page === 'Subcategories') return subcategoriesScreen();
     if (page === 'Category products') return categoryProductsScreen();
     if (page === 'Product details') return productDetailScreen();
     if (page === 'Cart') return cartScreen();
@@ -805,17 +940,33 @@ export function CustomerApp() {
       {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
     </>;
     if (page === 'Health log') return empty('▤', 'Health records', 'Health records are not available in the connected customer API yet.');
-    if (page === 'Appearance') return <View style={s.formCard}>{['Use device setting', 'Light', 'Dark'].map((item) => <Pressable key={item} onPress={() => setAppearance(item)} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
+    if (page === 'Appearance') return <View style={s.formCard}><Text style={s.formTitle}>Appearance</Text><Text style={s.formCopy}>Choose how Amedix looks on this device. Your choice is remembered.</Text>{['Use device setting', 'Light', 'Dark'].map((item) => <Pressable key={item} onPress={() => { setAppearance(item); void saveAppearanceSetting(item); }} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
     if (page === 'Help and support') return <View style={s.formCard}><Text style={s.formTitle}>How can we help?</Text><TextInput value={supportSubject} onChangeText={setSupportSubject} placeholder="Subject" placeholderTextColor={C.muted} style={s.input} /><TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Describe your issue" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton('Send support request', async () => { try { await apiCall('/support', { method: 'POST', body: { subject: supportSubject, message: supportMessage } }); setSupportSubject(''); setSupportMessage(''); setNotice('Your request was sent to support.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Support request failed.'); } })}</View>;
     return empty('✚', 'Coming soon', 'This section will be available shortly.');
   };
 
-  const title = page === 'Category products' ? (categories.find((category) => category.id === categoryId)?.name ?? 'Products') : page === 'My Account' ? 'My Account' : page === 'Medical Orders' ? 'My Orders' : page === 'Booking' ? 'Booking' : page === 'Product details' ? 'Product details' : page;
+  const title = page === 'Category products'
+    ? (selectedSubcategoryId
+        ? (categories.find((c) => c.id === categoryId)?.subcategories?.find((s) => s.id === selectedSubcategoryId)?.name
+            ?? categories.find((c) => c.id === categoryId)?.name
+            ?? 'Products')
+        : (categories.find((category) => category.id === categoryId)?.name ?? 'All products'))
+    : page === 'Subcategories'
+    ? `${categories.find((c) => c.id === categoryId)?.name ?? 'Category'} Subcategories`
+    : page === 'My Account'
+    ? 'My Account'
+    : page === 'Medical Orders'
+    ? 'My Orders'
+    : page === 'Booking'
+    ? 'Booking'
+    : page === 'Product details'
+    ? 'Product details'
+    : page;
   // Keep the primary navigation limited to the four customer areas. Cart remains
   // available from the bag button so shopping and checkout are still reachable.
   const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
 
-  return <SafeAreaView onLayout={() => { if (Platform.OS !== 'web') void SplashScreen.hideAsync(); }} style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
+  return <SafeAreaView onLayout={() => { if (Platform.OS !== 'web') void SplashScreen.hideAsync(); }} style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle={isLightTheme ? 'dark-content' : 'light-content'} backgroundColor={C.bg} />
     <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AIMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
@@ -883,11 +1034,13 @@ export function CustomerApp() {
   </SafeAreaView>;
 }
 
-function SummaryLine({ label, value, green = false, strong = false }: { label: string; value: string; green?: boolean; strong?: boolean }) {
-  return <View style={s.summaryLine}><Text style={[s.summaryLabel, strong && s.summaryStrong]}>{label}</Text><Text style={[s.summaryValue, green && s.green, strong && s.summaryStrong]}>{value}</Text></View>;
+type AppStyles = ReturnType<typeof makeStyles>;
+
+function SummaryLine({ label, value, green = false, strong = false, styles }: { label: string; value: string; green?: boolean; strong?: boolean; styles: AppStyles }) {
+  return <View style={styles.summaryLine}><Text style={[styles.summaryLabel, strong && styles.summaryStrong]}>{label}</Text><Text style={[styles.summaryValue, green && styles.green, strong && styles.summaryStrong]}>{value}</Text></View>;
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   safe: {
     flex: 1,
     width: '100%',
@@ -901,7 +1054,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#152022',
+    borderColor: C.headerLine,
     gap: 12
 
   },
@@ -986,7 +1139,7 @@ const s = StyleSheet.create({
 
   },
   arrow: {
-    color: '#89969b',
+    color: C.arrow,
     fontSize: 21
   },
   searchBox: {
@@ -997,7 +1150,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#20292c',
+    borderColor: C.searchLine,
     marginBottom: 12
 
   },
@@ -1056,7 +1209,7 @@ const s = StyleSheet.create({
     marginTop: 4
   },
   demoOnlyBadge: {
-    color: '#ffca72',
+    color: C.demoBadge,
     fontSize: 8,
     fontWeight: '900',
     letterSpacing: 0.4,
@@ -1119,7 +1272,7 @@ const s = StyleSheet.create({
   },
   dot: {
     height: 5,
-    width: 5, backgroundColor: '#415151',
+    width: 5, backgroundColor: C.dot,
     borderRadius: 4
   },
   dotOn: {
@@ -1149,13 +1302,13 @@ const s = StyleSheet.create({
   reportButton: {
     borderRadius: 9,
     borderWidth: 1,
-    borderColor: '#27655f',
-    backgroundColor: '#172423',
+    borderColor: C.reportLine,
+    backgroundColor: C.reportBg,
     paddingHorizontal: 12,
     paddingVertical: 8
 
   }, reportButtonOn: {
-    backgroundColor: '#087f78'
+    backgroundColor: C.tealDark
   },
   reportButtonText: {
     color: C.mint,
@@ -1179,28 +1332,28 @@ const s = StyleSheet.create({
   categoryImage: { width: 40, height: 40, borderRadius: 9 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 18 },
   categoryCard: { width: '48.5%', minHeight: 128, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
-  allProductsCard: { width: '100%', minHeight: 70, flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 12, borderColor: '#17645e' },
+  allProductsCard: { width: '100%', minHeight: 70, flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 12, borderColor: C.allProductsLine },
   categoryCardImage: { width: 58, height: 58, borderRadius: 12 },
-  datePickerButton: { minHeight: 44, borderRadius: 9, backgroundColor: '#20272b', borderWidth: 1, borderColor: '#293135', paddingHorizontal: 11, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  datePickerButton: { minHeight: 44, borderRadius: 9, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.inputLine, paddingHorizontal: 11, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   datePickerValue: { color: C.white, fontSize: 11, fontWeight: '700' }, datePickerPlaceholder: { color: C.muted, fontSize: 11 },
   calendarMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12 }, calendarMonthTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
   calendarNav: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.raised, alignItems: 'center', justifyContent: 'center' }, calendarNavText: { color: C.mint, fontSize: 24, lineHeight: 27 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, calendarWeekday: { width: '14.28%', textAlign: 'center', color: C.muted, fontSize: 9, fontWeight: '700', paddingVertical: 7 },
   calendarDay: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }, calendarDaySelected: { backgroundColor: C.tealDark }, calendarDayDisabled: { opacity: 0.35 }, calendarDayText: { color: C.white, fontSize: 11 }, calendarDayTextSelected: { color: 'white', fontWeight: '900' }, calendarDayTextDisabled: { color: C.muted },
-  calendarSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 8 }, calendarSlot: { width: '23%', alignItems: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line }, calendarSlotSelected: { backgroundColor: '#0b554e', borderColor: C.teal }, calendarSlotText: { color: '#d2dadd', fontSize: 10 }, calendarSlotTextSelected: { color: C.mint, fontWeight: '800' }, calendarConfirm: { marginTop: 5 }, calendarConfirmDisabled: { opacity: 0.45 },
+  calendarSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 8 }, calendarSlot: { width: '23%', alignItems: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line }, calendarSlotSelected: { backgroundColor: C.slotOnBg, borderColor: C.teal }, calendarSlotText: { color: C.softText, fontSize: 10 }, calendarSlotTextSelected: { color: C.mint, fontWeight: '800' }, calendarConfirm: { marginTop: 5 }, calendarConfirmDisabled: { opacity: 0.45 },
 
   categoryEmoji: {
     color: C.teal,
     fontSize: 23
   },
   categoryText: {
-    color: '#d2dadd',
+    color: C.softText,
     fontSize: 8,
      fontWeight: '700',
     textAlign: 'center', lineHeight: 11
   },
-  chatBubble: { maxWidth: '85%', alignSelf: 'flex-start', backgroundColor: '#20282c', padding: 10, borderRadius: 11 },
-  chatBubbleMine: { alignSelf: 'flex-end', backgroundColor: '#075d55' },
+  chatBubble: { maxWidth: '85%', alignSelf: 'flex-start', backgroundColor: C.tileBg, padding: 10, borderRadius: 11 },
+  chatBubbleMine: { alignSelf: 'flex-end', backgroundColor: C.chatMineBg },
   chatMessage: { color: C.white, fontSize: 10, lineHeight: 15 },
   chatTime: { color: C.muted, fontSize: 7, marginTop: 5 },
   filterChip: {
@@ -1212,11 +1365,11 @@ const s = StyleSheet.create({
     paddingVertical: 8
   },
   filterChipOn: {
-    backgroundColor: '#064d48',
+    backgroundColor: C.chipOnBg,
     borderColor: C.teal
   },
   filterText: {
-    color: '#c3cccf',
+    color: C.textSofter,
     fontSize: 10
   },
   filterTextOn: {
@@ -1236,10 +1389,10 @@ const s = StyleSheet.create({
   },
   zoneSelected: {
     borderColor: C.teal,
-    backgroundColor: '#063d3a'
+    backgroundColor: C.zoneOnBg
   },
   zoneText: {
-    color: '#bdc7ca',
+    color: C.zoneText,
     fontSize: 10
   },
   zoneTextSelected: {
@@ -1255,10 +1408,10 @@ const s = StyleSheet.create({
     width: '48.5%',
     backgroundColor: C.card, borderRadius: 14, padding: 9,
     borderWidth: 1,
-    borderColor: '#1d272a'
+    borderColor: C.productLine
   },
   productImage: {
-    height: 102, borderRadius: 10, backgroundColor: '#20282c',
+    height: 102, borderRadius: 10, backgroundColor: C.tileBg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8, position: 'relative'
@@ -1274,7 +1427,7 @@ const s = StyleSheet.create({
   detailPhoto: {
     width: '100%',
     height: 250,
-    backgroundColor: '#20282c',
+    backgroundColor: C.tileBg,
     borderRadius: 12,
     marginBottom: 16
 
@@ -1283,7 +1436,7 @@ const s = StyleSheet.create({
   detailPhotoFallback: {
     width: '100%',
     height: 190,
-    backgroundColor: '#20282c',
+    backgroundColor: C.tileBg,
     borderRadius: 12,
     marginBottom: 16,
     alignItems: 'center', justifyContent: 'center'
@@ -1304,7 +1457,7 @@ const s = StyleSheet.create({
 
   },
   detailDescription: {
-    color: '#c3cccf',
+    color: C.textSofter,
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 16
@@ -1316,7 +1469,7 @@ const s = StyleSheet.create({
     right: 6,
     height: 27, width: 27,
     borderRadius: 14,
-    backgroundColor: '#0c1416',
+    backgroundColor: C.heartBg,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -1353,7 +1506,7 @@ const s = StyleSheet.create({
     marginTop: 4
   },
   rxNote: {
-    color: '#e5bd80',
+    color: C.rxNote,
     fontSize: 7,
     marginTop: 5
   },
@@ -1391,14 +1544,14 @@ const s = StyleSheet.create({
     fontWeight: '800'
   },
   disabled: {
-    backgroundColor: '#454c4e'
+    backgroundColor: C.disabledBg
   },
   tabs: {
     height: 59,
     borderTopWidth: 1,
-    borderColor: '#20282b',
+    borderColor: C.tabsBorder,
     flexDirection: 'row',
-    backgroundColor: '#090e10',
+    backgroundColor: C.tabsBg,
     justifyContent: 'space-around',
     paddingTop: 7
   },
@@ -1408,13 +1561,13 @@ const s = StyleSheet.create({
     gap: 2
   },
   tabIcon: {
-    color: '#728085', fontSize: 23, lineHeight: 25, fontWeight: '900'
+    color: C.tabIcon, fontSize: 23, lineHeight: 25, fontWeight: '900'
   }, tabOn: {
     color: C.teal
 
   },
   tabLabel: {
-    color: '#879297',
+    color: C.tabLabel,
     fontSize: 8
   },
   cartBadge: {
@@ -1427,11 +1580,11 @@ const s = StyleSheet.create({
     height: 15,
     alignItems: 'center', justifyContent: 'center'
   }, cartBadgeText: { color: 'white', fontSize: 8, fontWeight: '800' },
-  configBanner: { backgroundColor: '#15322e', padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 11, fontWeight: '800' }, configText: { color: '#b3c5c5', fontSize: 9, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: '#3d2c16', marginBottom: 10, gap: 8 }, noticeText: { color: '#f6dcaa', fontSize: 10, flex: 1 }, dismiss: { color: '#f6dcaa', fontSize: 19 },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 16 }, emptyGlyph: { color: C.teal, fontSize: 28, marginBottom: 9 }, emptyTitle: { color: '#e5eeee', fontSize: 12, fontWeight: '700', textAlign: 'center' }, emptyCopy: { color: C.muted, fontSize: 9, textAlign: 'center', marginTop: 5, lineHeight: 14, maxWidth: 245 },
-  cartNudge: { backgroundColor: '#0b4239', borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: '#8ef6cc', fontSize: 17 }, nudgeText: { color: '#d4ffec', fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: '#20282c', alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: '#253033', alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: '#b1bcbe', fontSize: 10 }, summaryValue: { color: '#e8eeee', fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: '#78e4aa' }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: '#123433' }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: '#20272b', color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: '#293135' },
-  button: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 10, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#185350' }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 9, marginTop: 3 }, signout: { color: 'white', fontSize: 9, fontWeight: '800' }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: '#e8eeee', fontSize: 10, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 8, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 11, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 8, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 9, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: '#20272b', gap: 8, marginBottom: 7 }, filePickerText: { color: '#dbe3e4', fontSize: 9, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 9, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 10, fontWeight: '700' }, fieldLabel: { color: '#dbe3e4', fontSize: 9, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
-  menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: '#0b1113', height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: '#263135' }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: '#78878c', fontSize: 8, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#1b2629' }, menuItemText: { color: '#e0e8e9', fontSize: 10, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: '#20413e', alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 10, fontWeight: '800' }, menuFooter: { color: '#657277', fontSize: 8, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
-  areaPickerModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'transparent' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: '#101719', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: '#f6dcaa', fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: '#bdc7ca', backgroundColor: '#20272b', borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
+  configBanner: { backgroundColor: C.configBg, padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 11, fontWeight: '800' }, configText: { color: C.configText, fontSize: 9, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: C.noticeBg, marginBottom: 10, gap: 8 }, noticeText: { color: C.noticeText, fontSize: 10, flex: 1 }, dismiss: { color: C.noticeText, fontSize: 19 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 16 }, emptyGlyph: { color: C.teal, fontSize: 28, marginBottom: 9 }, emptyTitle: { color: C.emptyTitle, fontSize: 12, fontWeight: '700', textAlign: 'center' }, emptyCopy: { color: C.muted, fontSize: 9, textAlign: 'center', marginTop: 5, lineHeight: 14, maxWidth: 245 },
+  cartNudge: { backgroundColor: C.nudgeBg, borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: C.nudgeGlyph, fontSize: 17 }, nudgeText: { color: C.nudgeText, fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: C.tileBg, alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: C.qtyBg, alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: C.summaryLabel, fontSize: 10 }, summaryValue: { color: C.summaryValue, fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: C.green }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: C.loginPromptBg }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: C.inputBg, color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: C.inputLine },
+  button: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 10, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.outlineLine }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 9, marginTop: 3 }, signout: { color: 'white', fontSize: 9, fontWeight: '800' }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: C.summaryValue, fontSize: 10, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 8, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 11, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 8, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 9, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: C.inputBg, gap: 8, marginBottom: 7 }, filePickerText: { color: C.fieldLabel, fontSize: 9, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 9, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 10, fontWeight: '700' }, fieldLabel: { color: C.fieldLabel, fontSize: 9, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
+  menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: C.menuBg, height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: C.menuBorder }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: C.menuSection, fontSize: 8, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: C.menuItemLine }, menuItemText: { color: C.menuItemText, fontSize: 10, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: C.menuSignoutLine, alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 10, fontWeight: '800' }, menuFooter: { color: C.menuFooter, fontSize: 8, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
+  areaPickerModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'transparent' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: C.sheetBg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: C.noticeText, fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: C.zoneText, backgroundColor: C.inputBg, borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
 });
 
