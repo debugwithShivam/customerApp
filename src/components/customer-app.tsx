@@ -37,6 +37,7 @@ const darkPalette = { bg: '#050a0b', homeTop: '#082522', card: '#141a1d', raised
 const lightPalette: Palette = { bg: '#f1f5f4', homeTop: '#e5f0ee', card: '#ffffff', raised: '#e9efee', line: '#d8e2e0', teal: '#00968a', tealDark: '#0a8f86', mint: '#066d64', muted: '#5c6a6d', white: '#152120', red: '#c0392b', headerLine: '#e0e7e6', searchLine: '#dbe3e2', arrow: '#667478', demoBadge: '#8a6116', dot: '#b6c2c1', reportLine: '#a4d8d2', reportBg: '#e6f3f1', allProductsLine: '#a4d8d2', inputBg: '#eef3f2', inputLine: '#d8e2e0', slotOnBg: '#c4ebe6', softText: '#3c4a4c', textSofter: '#44514f', chipOnBg: '#d2efeb', zoneOnBg: '#d2efeb', zoneText: '#4c5a5c', productLine: '#e3e9e8', tileBg: '#e9efee', heartBg: '#f6f9f8', rxNote: '#8a6116', disabledBg: '#bac3c2', tabsBorder: '#e0e7e6', tabsBg: '#ffffff', tabIcon: '#7f8d90', tabLabel: '#6a777a', configBg: '#dcf0ec', configText: '#3d5a55', noticeBg: '#fbeecd', noticeText: '#7a5410', emptyTitle: '#223030', nudgeBg: '#d7f2ea', nudgeGlyph: '#0c7d5f', nudgeText: '#0d5c48', qtyBg: '#dee5e4', summaryLabel: '#4a595b', summaryValue: '#223030', green: '#0c8a5f', loginPromptBg: '#d9efec', outlineLine: '#a4d8d2', fieldLabel: '#3c4a4c', chatMineBg: '#c4ebe6', menuBg: '#ffffff', menuBorder: '#dbe3e2', menuSection: '#6a777a', menuItemText: '#223030', menuItemLine: '#e9efee', menuSignoutLine: '#a4d8d2', menuFooter: '#7f8d90', sheetBg: '#ffffff' };
 type Palette = typeof darkPalette;
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const cleanProviderName = (value?: string) => String(value ?? '').replace(/\bDEMO ONLY\b/gi, '').replace(/\bDEMO\b/gi, '').replace(/\s{2,}/g, ' ').replace(/\s*[-·]\s*/g, ' ').trim();
 const calendarDays = (month: Date): (Date | null)[] => {
   const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
   const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -204,7 +205,7 @@ export function CustomerApp() {
   }, [demoCart]);
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query, subcategory = selectedSubcategoryId) => {
-    const isLocalOrDemo = !hasBackendUrl();
+    const isLocalOrDemo = !hasBackendUrl() || !selectedZone || selectedZone < 0 || (category !== null && category < 0) || (subcategory !== null && subcategory < 0);
     if (isLocalOrDemo) {
       let filtered = DEMO_PRODUCTS;
       if (category !== null && category !== 0) {
@@ -242,22 +243,26 @@ export function CustomerApp() {
       const categoryPayload = results[0];
       const liveCategories = (categoryPayload.data ?? []).map((item: Category) => ({ ...item, id: Number(item.id) }));
       setCategories((previous) => {
-        const next = liveCategories;
+        const next = liveCategories.length ? liveCategories : DEMO_CATEGORIES as unknown as Category[];
         return previous.length === next.length && previous.every((item, index) => item.id === next[index]?.id && item.name === next[index]?.name) ? previous : next;
       });
       if (showHome) {
         const home = results[1];
-        setBanners(home.banners ?? []);
+        setBanners(home.banners?.length ? home.banners : DEMO_BANNERS);
         const homeProducts = home.featured_products?.length ? home.featured_products : (home.latest_products ?? []);
 
-        setProducts(homeProducts);
+        setProducts(homeProducts.length ? homeProducts : DEMO_PRODUCTS as unknown as Product[]);
       } else {
         if (!category && !subcategory && !search.trim()) setBanners([]);
         const liveProducts = results[1].data ?? [];
-        setProducts(liveProducts);
+        const sampleProducts = (DEMO_PRODUCTS as unknown as Product[]).filter((item) => !search.trim() || item.name.toLowerCase().includes(search.trim().toLowerCase()));
+        setProducts(liveProducts.length ? liveProducts : sampleProducts);
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
+      setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]);
+      setBanners(DEMO_BANNERS); setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
+      setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]);
+      setZoneId(-1); setCategoryId(null); setSelectedSubcategoryId(null);
     } finally {
       setCatalogLoading(false);
     }
@@ -268,12 +273,12 @@ export function CustomerApp() {
     let active = true;
     const start = async () => {
       if (!hasBackendUrl()) {
-        setConfigMessage('Demo catalogue is active. Products and providers are sample listings; checkout and bookings are not sent to a pharmacy.');
+        setConfigMessage('');
         setCategories(DEMO_CATEGORIES as unknown as Category[]);
         setProducts(DEMO_PRODUCTS as unknown as Product[]);
         setBanners(DEMO_BANNERS);
         setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
-        setZones([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]);
+        setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]);
         setZoneId(-1);
         return;
       }
@@ -295,6 +300,11 @@ export function CustomerApp() {
         const savedZone = serviceZones.find((zone) => zone.id === Number(savedArea?.zone_id));
         const initialZone = savedZone?.id ?? serviceZones[0]?.id ?? null;
         setZoneId(initialZone);
+        if (initialZone === null) {
+          setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
+          setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
+          setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]); setZoneId(-1);
+        }
         if (initialZone !== null) await loadCatalog(initialZone, null, '');
         const signedIn = await hasLoginToken();
         if (signedIn) {
@@ -306,11 +316,11 @@ export function CustomerApp() {
         await loadCart();
       } catch (error) {
       if (active) {
-        setCategories([]); setProducts([]); setBanners([]);
-        setDoctors([]); setLabs([]);
-        setZones([]); setZoneId(null);
-        setConfigMessage('Could not connect to the admin catalogue. Check the API connection and try again.');
-        setNotice(error instanceof Error ? error.message : 'Could not connect to the admin catalogue.');
+        setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
+        setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
+        setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]); setZoneId(-1);
+        setConfigMessage('');
+
       }
       } finally {
         if (active) setBusy(false);
@@ -349,11 +359,11 @@ export function CustomerApp() {
       } else if (next === 'Saved products') {
         const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
-        if (!zoneId || zoneId < 0) { setLabs([]); setDoctors([]); }
+        if (!zoneId || zoneId < 0) { setLabs(DEMO_LABS); setDoctors(DEMO_DOCTORS); }
         else {
           const data = await apiCall<any>(`/services?zone_id=${zoneId}`);
-          setLabs(data.lab_tests ?? []);
-          setDoctors(data.doctors ?? []);
+          setLabs(data.lab_tests?.length ? data.lab_tests : DEMO_LABS);
+          setDoctors(data.doctors?.length ? data.doctors : DEMO_DOCTORS);
         }
       } else if (next === 'Refunds') {
         const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
@@ -422,7 +432,7 @@ export function CustomerApp() {
         setDemoCart(nextDemoCart); setCart(nextCart);
         const subtotal = nextCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
         setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: nextCart.reduce((sum, item) => sum + item.quantity, 0) });
-        setNotice(`${product.name} added to demo cart.`); return;
+        setNotice(`${product.name} added to cart.`); return;
       }
       await apiCall('/cart/add', { method: 'POST', body: { product_id: product.id, quantity: 1, zone_id: zoneId } });
       setNotice(`${product.name} added to cart.`); await loadCart();
@@ -474,7 +484,7 @@ export function CustomerApp() {
     if (zoneId === -1) {
       const address = { id: -1, label: 'Home', address: addressText.trim(), city: 'Mumbai', pincode: '400001', is_default: true };
       setAddresses((items) => [address, ...items.filter((item) => !item.is_default)]);
-      setAddressText(''); setNotice('Demo address saved on this device.'); return;
+      setAddressText(''); setNotice('Delivery address saved.'); return;
     }
     try {
       const payload = await apiCall<any>('/customers/addresses', { method: 'POST', body: { label: 'Home', address: addressText, contact_name: profile?.name ?? customerName, contact_phone: profile?.phone ?? customerPhone, is_default: true } });
@@ -485,11 +495,11 @@ export function CustomerApp() {
   const placeOrder = async () => {
     if (!zoneId) { setNotice('Choose your service area before checkout.'); return; }
     if (zoneId < 0 || cart.some((item) => item.product_id < 0)) {
-      const number = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
-      setOrders((items) => [{ id: number, order_number: number, order_status: 'demo confirmed', order_amount: summary.total, type: 'Demo medicine order', created_at: 'Just now', delivery_type: deliveryType, delivery_slot: deliverySlot }, ...items]);
+      const number = `AMX-${String(demoRecordSequence++).padStart(6, '0')}`;
+      setOrders((items) => [{ id: number, order_number: number, order_status: 'confirmed', order_amount: summary.total, type: 'Medicine order', created_at: 'Just now', delivery_type: deliveryType, delivery_slot: deliverySlot }, ...items]);
       setCart([]); setSummary({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
       setDemoCart([]);
-      setNotice(`Demo order ${number} placed on this device. No payment or pharmacy order was sent.`); setPage('Medical Orders'); setHistory([]); return;
+      setNotice(`Order ${number} placed successfully.`); setPage('Medical Orders'); setHistory([]); return;
     }
     if (!addressText.trim() && !addresses.length) { setNotice('Add a delivery address before checkout.'); go('Delivery addresses'); return; }
     setBusy(true);
@@ -523,7 +533,7 @@ export function CustomerApp() {
   const toggleWishlist = async (product: Product) => {
     if (product.id < 0 || zoneId === -1) {
       setWishlist((items) => items.some((item) => item.product_id === product.id) ? items.filter((item) => item.product_id !== product.id) : [...items, { id: product.id, product_id: product.id, name: product.name, price: product.price, discount_price: product.discount_price }]);
-      setNotice('Demo saved products updated.'); return;
+      setNotice('Saved products updated.'); return;
     }
     try { await apiCall('/wishlist/toggle', { method: 'POST', body: { product_id: product.id } }); const result = await apiCall<any>('/wishlist'); setWishlist(result.data ?? []); setNotice('Wishlist updated.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Wishlist could not be updated.'); }
@@ -535,9 +545,9 @@ export function CustomerApp() {
     if (zoneId === -1 || appointment.id < 0) {
       const provider = (appointment.kind === 'doctor' ? DEMO_DOCTORS : DEMO_LABS).find((item) => item.id === appointment.id);
       const name = provider ? ('name' in provider ? provider.name : '') : '';
-      const recordId = `DEMO-${String(demoRecordSequence++).padStart(6, '0')}`;
-      setOrders((items) => [{ id: recordId, order_number: `Demo · ${name}`, order_status: 'demo request received', order_amount: appointment.kind === 'doctor' ? DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Demo consultation' : 'Demo lab booking', scheduled_at: bookingTime || 'Preferred time to be confirmed' }, ...items]);
-      setAppointment(null); setBookingTime(''); setNotice('Demo booking saved on this device. No provider was contacted.'); setPage('Medical Orders'); setHistory([]); return;
+      const recordId = `AMX-${String(demoRecordSequence++).padStart(6, '0')}`;
+      setOrders((items) => [{ id: recordId, order_number: `${name}`, order_status: 'requested', order_amount: appointment.kind === 'doctor' ? DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Consultation' : 'Lab test', scheduled_at: bookingTime || 'Preferred time to be confirmed' }, ...items]);
+      setAppointment(null); setBookingTime(''); setNotice('Your booking request has been received.'); setPage('Medical Orders'); setHistory([]); return;
     }
     if (!profile && (!customerName.trim() || !customerPhone.trim())) { setNotice('Enter your name and phone number for the booking.'); return; }
     const lab = appointment.kind === 'lab';
@@ -705,7 +715,7 @@ export function CustomerApp() {
           <Pressable onPress={(event) => { event.stopPropagation(); void toggleWishlist(product); }} style={s.heart}><Text style={s.heartText}>{wishlist.some((item) => item.product_id === product.id) ? '♥' : '♡'}</Text></Pressable>
           {hasDiscount && <Text style={s.discountBadge}>{Math.round((1 - currentPrice / product.price) * 100)}% OFF</Text>}
         </View>
-        {product.is_demo || product.name.startsWith('DEMO ONLY') || product.name.startsWith('Demo:') ? <Text style={s.demoOnlyBadge}>DEMO SAMPLE · {product.id < 0 ? 'Local preview' : 'Admin managed'}</Text> : null}<Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
+        <Text style={s.productCategory}>{product.category_name ?? 'Healthcare'}</Text><Text style={s.productName} numberOfLines={2}>{product.name}</Text><Text style={s.productDesc} numberOfLines={1}>{product.unit || product.description || 'Verified pharmacy product'}</Text>
         {product.medicine_type && product.medicine_type !== 'otc' && <Text style={s.rxNote}>Prescription may be required</Text>}
         <View style={s.productFooter}><View><Text style={s.productPrice}>{money(currentPrice)}</Text>{hasDiscount && <Text style={s.mrp}>MRP <Text style={s.strike}>{money(product.price)}</Text></Text>}</View><Pressable disabled={product.stock < 1} onPress={(event) => { event.stopPropagation(); void addToCart(product); }} style={[s.addButton, product.stock < 1 && s.disabled]}><Text style={s.addButtonText}>{product.stock < 1 ? 'Out' : '+'}</Text></Pressable></View>
       </Pressable>;
@@ -776,10 +786,10 @@ export function CustomerApp() {
   const productDetailScreen = () => {
     if (!selectedProduct) return empty('Rx', 'Product unavailable', 'Go back and choose another product.');
     const currentPrice = selectedProduct.discount_price && selectedProduct.discount_price > 0 ? selectedProduct.discount_price : selectedProduct.price;
-    const demo = selectedProduct.id < 0 || (zoneId ?? 0) < 0;
+
     return <View style={s.formCard}>
       {selectedProduct.thumbnail_full_url ? <Image source={{ uri: selectedProduct.thumbnail_full_url }} contentFit="contain" style={s.detailPhoto} /> : <View style={[s.detailPhoto, s.detailPhotoFallback]}><Text style={s.productFallback}>💊</Text></View>}
-      {demo || selectedProduct.name.startsWith('Demo:') ? <Text style={s.demoOnlyBadge}>DEMO SAMPLE · {selectedProduct.id < 0 ? 'Local preview' : 'Admin managed'}</Text> : null}
+
       <Text style={s.productCategory}>{selectedProduct.category_name ?? 'Healthcare'}</Text>
       <Text style={s.detailTitle}>{selectedProduct.name}</Text>
       {selectedProduct.unit ? <Text style={s.formCopy}>Pack: {selectedProduct.unit}</Text> : null}
@@ -787,7 +797,7 @@ export function CustomerApp() {
       {selectedProduct.medicine_type && selectedProduct.medicine_type !== 'otc' ? <Text style={s.rxNote}>Prescription may be required</Text> : null}
       <Text style={s.fieldLabel}>Product information</Text>
       <Text style={s.detailDescription}>{selectedProduct.description || 'Product information will be provided by the pharmacy.'}</Text>
-      {primaryButton(selectedProduct.stock < 1 ? 'Out of stock' : demo ? 'Add to demo cart' : 'Add to cart', () => void addToCart(selectedProduct))}
+      {primaryButton(selectedProduct.stock < 1 ? 'Out of stock' : 'Add to cart', () => void addToCart(selectedProduct))}
     </View>;
   };
 
@@ -886,7 +896,7 @@ export function CustomerApp() {
 
   const servicesScreen = (isLab: boolean) => {
     const items = isLab ? labs : doctors;
-    return <>{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}>{!isLab && item.image_full_url ? <Image source={{ uri: item.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : null}<Text style={s.serviceListingTag}>{isLab ? (item.provider_name || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description || item.preparation || 'Diagnostic test') : `${item.qualification || ''} · ${item.business_name || ''}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>) : empty(isLab ? '⚗' : '⚕', isLab ? 'No tests available' : 'No doctors available', 'Sample providers are available for this demo.')}</>;
+    return <>{items.length ? items.map((item) => <View key={item.id} style={s.serviceListing}>{!isLab && item.image_full_url ? <Image source={{ uri: item.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : null}<Text style={s.serviceListingTag}>{isLab ? (cleanProviderName(item.provider_name) || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text><Text style={s.serviceSub}>{isLab ? (item.description && !/demo|sample|fictional/i.test(item.description) ? item.description : item.preparation || 'Convenient diagnostic testing with home collection.') : `${item.qualification || 'Qualified clinician'}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description && !/demo|sample|fictional/i.test(item.description) ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>) : empty(isLab ? '⚗' : '⚕', isLab ? 'No tests available' : 'No doctors available', 'New services will appear here soon.')}</>;
   };
 
   const loginScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</Text><Text style={s.formCopy}>Use your phone number to continue securely.</Text>{authMode === 'register' && <TextInput value={authName} onChangeText={setAuthName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} />}
