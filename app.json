@@ -7,12 +7,10 @@
     "icon": "./assets/appicon.png",
     "scheme": "aimedixpartner",
     "userInterfaceStyle": "automatic",
-
     "ios": {
       "bundleIdentifier": "com.aimedixmeds.partnerapp",
       "icon": "./assets/appicon.png"
     },
-
     "android": {
       "package": "com.aimedixmeds.partnerapp",
       "adaptiveIcon": {
@@ -21,12 +19,10 @@
       },
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/appicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -39,16 +35,16 @@
       ],
       "expo-secure-store"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "8a89fe61-88ca-42c0-b33d-be50f62ae3e9"
+      }
     },
-
     "owner": "harshpandeyxande"
   }
 }

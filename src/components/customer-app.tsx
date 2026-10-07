@@ -11,7 +11,7 @@ import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, readAppearanceSetting, readCustomerArea, saveAppearanceSetting, saveCustomerArea, saveLoginToken } from '@/services/medical-api';
 import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
-type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Appearance' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
 type Subcategory = {
   id: number;
   category_id: number;
@@ -33,8 +33,8 @@ type LocationChoice = MapPin & { address: string; pincode?: string; city?: strin
 type Summary = { subtotal: number; medicine_discount: number; coupon_discount: number; total_discount: number; tax_total: number; delivery_charge: number; platform_fee: number; extra_discount_threshold: number; total: number; items_count: number };
 type Profile = { id: number; name: string; phone: string; email?: string };
 
-const darkPalette = { bg: '#050a0b', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888', headerLine: '#152022', searchLine: '#20292c', arrow: '#89969b', demoBadge: '#ffca72', dot: '#415151', reportLine: '#27655f', reportBg: '#172423', allProductsLine: '#17645e', inputBg: '#20272b', inputLine: '#293135', slotOnBg: '#0b554e', softText: '#d2dadd', textSofter: '#c3cccf', chipOnBg: '#064d48', zoneOnBg: '#063d3a', zoneText: '#bdc7ca', productLine: '#1d272a', tileBg: '#20282c', heartBg: '#0c1416', rxNote: '#e5bd80', disabledBg: '#454c4e', tabsBorder: '#20282b', tabsBg: '#090e10', tabIcon: '#728085', tabLabel: '#879297', configBg: '#15322e', configText: '#b3c5c5', noticeBg: '#3d2c16', noticeText: '#f6dcaa', emptyTitle: '#e5eeee', nudgeBg: '#0b4239', nudgeGlyph: '#8ef6cc', nudgeText: '#d4ffec', qtyBg: '#253033', summaryLabel: '#b1bcbe', summaryValue: '#e8eeee', green: '#78e4aa', loginPromptBg: '#123433', outlineLine: '#185350', fieldLabel: '#dbe3e4', chatMineBg: '#075d55', menuBg: '#0b1113', menuBorder: '#263135', menuSection: '#78878c', menuItemText: '#e0e8e9', menuItemLine: '#1b2629', menuSignoutLine: '#20413e', menuFooter: '#657277', sheetBg: '#101719' };
-const lightPalette: Palette = { bg: '#f1f5f4', card: '#ffffff', raised: '#e9efee', line: '#d8e2e0', teal: '#00968a', tealDark: '#0a8f86', mint: '#066d64', muted: '#5c6a6d', white: '#152120', red: '#c0392b', headerLine: '#e0e7e6', searchLine: '#dbe3e2', arrow: '#667478', demoBadge: '#8a6116', dot: '#b6c2c1', reportLine: '#a4d8d2', reportBg: '#e6f3f1', allProductsLine: '#a4d8d2', inputBg: '#eef3f2', inputLine: '#d8e2e0', slotOnBg: '#c4ebe6', softText: '#3c4a4c', textSofter: '#44514f', chipOnBg: '#d2efeb', zoneOnBg: '#d2efeb', zoneText: '#4c5a5c', productLine: '#e3e9e8', tileBg: '#e9efee', heartBg: '#f6f9f8', rxNote: '#8a6116', disabledBg: '#bac3c2', tabsBorder: '#e0e7e6', tabsBg: '#ffffff', tabIcon: '#7f8d90', tabLabel: '#6a777a', configBg: '#dcf0ec', configText: '#3d5a55', noticeBg: '#fbeecd', noticeText: '#7a5410', emptyTitle: '#223030', nudgeBg: '#d7f2ea', nudgeGlyph: '#0c7d5f', nudgeText: '#0d5c48', qtyBg: '#dee5e4', summaryLabel: '#4a595b', summaryValue: '#223030', green: '#0c8a5f', loginPromptBg: '#d9efec', outlineLine: '#a4d8d2', fieldLabel: '#3c4a4c', chatMineBg: '#c4ebe6', menuBg: '#ffffff', menuBorder: '#dbe3e2', menuSection: '#6a777a', menuItemText: '#223030', menuItemLine: '#e9efee', menuSignoutLine: '#a4d8d2', menuFooter: '#7f8d90', sheetBg: '#ffffff' };
+const darkPalette = { bg: '#050a0b', homeTop: '#082522', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888', headerLine: '#152022', searchLine: '#20292c', arrow: '#89969b', demoBadge: '#ffca72', dot: '#415151', reportLine: '#27655f', reportBg: '#172423', allProductsLine: '#17645e', inputBg: '#20272b', inputLine: '#293135', slotOnBg: '#0b554e', softText: '#d2dadd', textSofter: '#c3cccf', chipOnBg: '#064d48', zoneOnBg: '#063d3a', zoneText: '#bdc7ca', productLine: '#1d272a', tileBg: '#20282c', heartBg: '#0c1416', rxNote: '#e5bd80', disabledBg: '#454c4e', tabsBorder: '#20282b', tabsBg: '#090e10', tabIcon: '#728085', tabLabel: '#879297', configBg: '#15322e', configText: '#b3c5c5', noticeBg: '#3d2c16', noticeText: '#f6dcaa', emptyTitle: '#e5eeee', nudgeBg: '#0b4239', nudgeGlyph: '#8ef6cc', nudgeText: '#d4ffec', qtyBg: '#253033', summaryLabel: '#b1bcbe', summaryValue: '#e8eeee', green: '#78e4aa', loginPromptBg: '#123433', outlineLine: '#185350', fieldLabel: '#dbe3e4', chatMineBg: '#075d55', menuBg: '#0b1113', menuBorder: '#263135', menuSection: '#78878c', menuItemText: '#e0e8e9', menuItemLine: '#1b2629', menuSignoutLine: '#20413e', menuFooter: '#657277', sheetBg: '#101719' };
+const lightPalette: Palette = { bg: '#f1f5f4', homeTop: '#e5f0ee', card: '#ffffff', raised: '#e9efee', line: '#d8e2e0', teal: '#00968a', tealDark: '#0a8f86', mint: '#066d64', muted: '#5c6a6d', white: '#152120', red: '#c0392b', headerLine: '#e0e7e6', searchLine: '#dbe3e2', arrow: '#667478', demoBadge: '#8a6116', dot: '#b6c2c1', reportLine: '#a4d8d2', reportBg: '#e6f3f1', allProductsLine: '#a4d8d2', inputBg: '#eef3f2', inputLine: '#d8e2e0', slotOnBg: '#c4ebe6', softText: '#3c4a4c', textSofter: '#44514f', chipOnBg: '#d2efeb', zoneOnBg: '#d2efeb', zoneText: '#4c5a5c', productLine: '#e3e9e8', tileBg: '#e9efee', heartBg: '#f6f9f8', rxNote: '#8a6116', disabledBg: '#bac3c2', tabsBorder: '#e0e7e6', tabsBg: '#ffffff', tabIcon: '#7f8d90', tabLabel: '#6a777a', configBg: '#dcf0ec', configText: '#3d5a55', noticeBg: '#fbeecd', noticeText: '#7a5410', emptyTitle: '#223030', nudgeBg: '#d7f2ea', nudgeGlyph: '#0c7d5f', nudgeText: '#0d5c48', qtyBg: '#dee5e4', summaryLabel: '#4a595b', summaryValue: '#223030', green: '#0c8a5f', loginPromptBg: '#d9efec', outlineLine: '#a4d8d2', fieldLabel: '#3c4a4c', chatMineBg: '#c4ebe6', menuBg: '#ffffff', menuBorder: '#dbe3e2', menuSection: '#6a777a', menuItemText: '#223030', menuItemLine: '#e9efee', menuSignoutLine: '#a4d8d2', menuFooter: '#7f8d90', sheetBg: '#ffffff' };
 type Palette = typeof darkPalette;
 const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const calendarDays = (month: Date): (Date | null)[] => {
@@ -71,12 +71,12 @@ export function CustomerApp() {
   const [notice, setNotice] = useState('');
   const [configMessage, setConfigMessage] = useState('');
   const [config, setConfig] = useState<any>(null);
-  const [zones, setZones] = useState<Zone[]>([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]);
-  const [zoneId, setZoneId] = useState<number | null>(-1);
-  const [banners, setBanners] = useState<Banner[]>(DEMO_BANNERS);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [zoneId, setZoneId] = useState<number | null>(null);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [categories, setCategories] = useState<Category[]>(DEMO_CATEGORIES as unknown as Category[]);
-  const [products, setProducts] = useState<Product[]>(DEMO_PRODUCTS as unknown as Product[]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -91,11 +91,12 @@ export function CustomerApp() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [orders, setOrders] = useState<any[]>([]);
+  const [healthRecords, setHealthRecords] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [wishlist, setWishlist] = useState<any[]>([]);
-  const [labs, setLabs] = useState<any[]>(DEMO_LABS);
-  const [doctors, setDoctors] = useState<any[]>(DEMO_DOCTORS);
+  const [labs, setLabs] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number } | null>(null);
   const [consultationMode, setConsultationMode] = useState<'online' | 'clinic'>('online');
   const [consultationReason, setConsultationReason] = useState('');
@@ -203,7 +204,7 @@ export function CustomerApp() {
   }, [demoCart]);
 
   const loadCatalog = useCallback(async (selectedZone: number | null, category = categoryId, search = query, subcategory = selectedSubcategoryId) => {
-    const isLocalOrDemo = !selectedZone || selectedZone === -1 || !hasBackendUrl() || (category !== null && category < 0);
+    const isLocalOrDemo = !hasBackendUrl();
     if (isLocalOrDemo) {
       let filtered = DEMO_PRODUCTS;
       if (category !== null && category !== 0) {
@@ -217,6 +218,11 @@ export function CustomerApp() {
         filtered = filtered.filter((item) => item.name.toLowerCase().includes(q) || (item.subcategory_name && item.subcategory_name.toLowerCase().includes(q)));
       }
       setProducts(filtered as unknown as Product[]);
+      setCatalogLoading(false);
+      return;
+    }
+    if (!selectedZone || selectedZone < 0 || (category !== null && category < 0)) {
+      setProducts([]);
       setCatalogLoading(false);
       return;
     }
@@ -236,26 +242,19 @@ export function CustomerApp() {
       const categoryPayload = results[0];
       const liveCategories = (categoryPayload.data ?? []).map((item: Category) => ({ ...item, id: Number(item.id) }));
       setCategories((previous) => {
-        const next = liveCategories.length ? liveCategories : DEMO_CATEGORIES as unknown as Category[];
+        const next = liveCategories;
         return previous.length === next.length && previous.every((item, index) => item.id === next[index]?.id && item.name === next[index]?.name) ? previous : next;
       });
       if (showHome) {
         const home = results[1];
         setBanners(home.banners ?? []);
         const homeProducts = home.featured_products?.length ? home.featured_products : (home.latest_products ?? []);
-        if (!homeProducts.length) setCategories(DEMO_CATEGORIES as unknown as Category[]);
-        setProducts(homeProducts.length ? homeProducts : DEMO_PRODUCTS as unknown as Product[]);
+
+        setProducts(homeProducts);
       } else {
         if (!category && !subcategory && !search.trim()) setBanners([]);
         const liveProducts = results[1].data ?? [];
-        if (!liveProducts.length) {
-          let fallback = DEMO_PRODUCTS;
-          if (category) fallback = fallback.filter((p) => p.category_id === category);
-          if (subcategory) fallback = fallback.filter((p) => p.subcategory_id === subcategory);
-          setProducts(fallback as unknown as Product[]);
-        } else {
-          setProducts(liveProducts);
-        }
+        setProducts(liveProducts);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the Amedix catalogue.');
@@ -289,14 +288,14 @@ export function CustomerApp() {
         if (!active) return;
         setConfig(settings);
         const activeZones: Zone[] = (zoneResponse.data?.length ? zoneResponse.data : settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
-        const serviceZones: Zone[] = activeZones.length ? activeZones : [{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }];
+        const serviceZones: Zone[] = activeZones;
         setZones(serviceZones);
         if (savedArea?.location) setSelectedLocation(savedArea.location);
-        setCategories(cats.data?.length ? cats.data.map((category) => ({ ...category, id: Number(category.id) })) : DEMO_CATEGORIES as unknown as Category[]);
+        setCategories((cats.data ?? []).map((category) => ({ ...category, id: Number(category.id) })));
         const savedZone = serviceZones.find((zone) => zone.id === Number(savedArea?.zone_id));
-        const initialZone = savedZone?.id ?? serviceZones[0].id;
+        const initialZone = savedZone?.id ?? serviceZones[0]?.id ?? null;
         setZoneId(initialZone);
-        if (initialZone) await loadCatalog(initialZone, null, '');
+        if (initialZone !== null) await loadCatalog(initialZone, null, '');
         const signedIn = await hasLoginToken();
         if (signedIn) {
           try {
@@ -307,9 +306,9 @@ export function CustomerApp() {
         await loadCart();
       } catch (error) {
       if (active) {
-        setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
-        setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
-        setZones([{ id: -1, name: 'Demo service area', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', latitude: 19.076, longitude: 72.8777 }]); setZoneId(-1);
+        setCategories([]); setProducts([]); setBanners([]);
+        setDoctors([]); setLabs([]);
+        setZones([]); setZoneId(null);
         setConfigMessage('Could not connect to the admin catalogue. Check the API connection and try again.');
         setNotice(error instanceof Error ? error.message : 'Could not connect to the admin catalogue.');
       }
@@ -340,6 +339,9 @@ export function CustomerApp() {
       if (next === 'Medical Orders') {
         const [o, l, d] = await Promise.all([apiCall<any>('/orders'), apiCall<any>('/lab-bookings'), apiCall<any>('/consultations')]);
         setOrders([...(o.data ?? []), ...(l.data ?? []).map((x: any) => ({ ...x, order_number: x.test_name, order_status: x.status, order_amount: x.amount, type: 'Lab test' })), ...(d.data ?? []).map((x: any) => ({ ...x, order_number: x.doctor_name, order_status: x.status, order_amount: x.amount, type: 'Consultation' }))]);
+      } else if (next === 'Health log') {
+        const [labs, visits] = await Promise.all([apiCall<any>('/lab-bookings'), apiCall<any>('/consultations')]);
+        setHealthRecords([...(labs.data ?? []).map((item: any) => ({ ...item, record_type: 'Lab test', record_name: item.test_name || item.name || 'Lab test' })), ...(visits.data ?? []).map((item: any) => ({ ...item, record_type: 'Consultation', record_name: item.doctor_name ? 'Dr. ' + item.doctor_name : 'Doctor consultation' }))].sort((a: any, b: any) => String(b.scheduled_at || b.created_at || '').localeCompare(String(a.scheduled_at || a.created_at || ''))));
       } else if (next === 'Delivery addresses') {
         const data = await apiCall<any>('/customers/addresses'); setAddresses(data.data ?? []);
       } else if (next === 'Notifications') {
@@ -347,16 +349,16 @@ export function CustomerApp() {
       } else if (next === 'Saved products') {
         const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
-        if (!zoneId || zoneId < 0) { setLabs(DEMO_LABS); setDoctors(DEMO_DOCTORS); }
+        if (!zoneId || zoneId < 0) { setLabs([]); setDoctors([]); }
         else {
           const data = await apiCall<any>(`/services?zone_id=${zoneId}`);
-          setLabs(data.lab_tests?.length ? data.lab_tests : DEMO_LABS);
-          setDoctors(data.doctors?.length ? data.doctors : DEMO_DOCTORS);
+          setLabs(data.lab_tests ?? []);
+          setDoctors(data.doctors ?? []);
         }
       } else if (next === 'Refunds') {
         const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
       } else if (next === 'Wallet') {
-        const data = await apiCall<any>('/customers/wallet'); setConfig((old: any) => ({ ...old, wallet: data.data ?? data }));
+        const data = await apiCall<any>('/customers/wallet'); setConfig((old: any) => ({ ...old, wallet: { ...(data.data ?? {}), ledger: data.ledger ?? [], withdrawals: data.withdrawals ?? [] } }));
       } else if (next === 'Prescription Centre') {
         await loadPrescriptionCentre();
       }
@@ -691,7 +693,7 @@ export function CustomerApp() {
   const primaryButton = (label: string, action: () => void, secondary = false) => <Pressable onPress={action} style={[s.button, secondary && s.buttonOutline]}><Text style={[s.buttonText, secondary && s.buttonTextOutline]}>{label}</Text></Pressable>;
   const empty = (glyph: string, heading: string, copy: string) => <View style={s.empty}><Text style={s.emptyGlyph}>{glyph}</Text><Text style={s.emptyTitle}>{heading}</Text><Text style={s.emptyCopy}>{copy}</Text></View>;
 
-  const serviceCard = (glyph: string, title: string, detail: string, target: Page, accent: string) => <Pressable key={title} onPress={() => void openPage(target)} style={s.serviceCard}><View style={[s.serviceIcon, { backgroundColor: accent }]}><Text style={s.serviceGlyph}>{glyph}</Text></View><View style={{ flex: 1 }}><Text style={s.serviceTitle}>{title}</Text><Text style={s.serviceSub}>{detail}</Text></View><Text style={s.arrow}>›</Text></Pressable>;
+  const serviceCard = (glyph: string, title: string, detail: string, target: Page, _accent: string) => <Pressable key={title} accessibilityRole="button" accessibilityLabel={detail ? title + '. ' + detail : title} onPress={() => void openPage(target)} style={s.serviceCard}><View style={s.serviceIcon}><Text style={s.serviceGlyph}>{glyph}</Text></View><Text style={s.serviceTitle}>{title}</Text>{detail ? <Text style={s.serviceSub}>{detail}</Text> : null}</Pressable>;
 
   const productCards = (items = products) => {
     const visibleItems = items;
@@ -713,9 +715,14 @@ export function CustomerApp() {
   const homeScreen = () => <>
     {configMessage ? <View style={s.configBanner}><Text style={s.configTitle}>Backend connection ready to configure</Text><Text style={s.configText}>{configMessage}</Text></View> : null}
     {notice ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
-    <Pressable accessibilityRole="button" accessibilityLabel="Choose your delivery service area" onPress={openAreaPicker} style={s.location}><Text style={s.locationPin}>⌖</Text><View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View><Text style={s.arrow}>⌄</Text></Pressable>
-    <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>⌁</Text></View>
-    <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', 'Order health essentials', 'Categories', '#0a4542')}{serviceCard('⚕', 'Consult a doctor', 'Talk to a specialist', 'Consult a Doctor', '#123c50')}{serviceCard('⚗', 'Lab tests', 'Book tests at home', 'Lab Tests', '#362d5b')}{serviceCard('⌂', 'Diagnostics', 'Browse diagnostic providers', 'Lab Tests', '#1c4a38')}</View>
+    <View style={s.homeTopPanel}>
+      <View style={s.deliveryPromise}><View style={s.deliveryDot} /><Pressable accessibilityRole="button" accessibilityLabel="Browse medicines, 24/7 delivery available" onPress={() => { setCategoryId(null); setSelectedSubcategoryId(null); go('Categories'); }} style={{ flex: 1, minHeight: 48, alignSelf: 'stretch', justifyContent: 'center' }}><Text style={s.deliveryPromiseText}>24/7 medicine delivery available</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={'Open cart, ' + summary.items_count + ' items'} onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.homeHeaderAction}><Text style={s.deliveryPromiseIcon}>▢</Text></Pressable></View>
+      <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text>
+      <TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} accessibilityLabel="Search medicines and brands" style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>→</Text></View>
+      <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', '', 'Categories', '#0a4542')}{serviceCard('🧪', 'Lab Tests', '', 'Lab Tests', '#362d5b')}{serviceCard('▣', 'Consult', '', 'Consult a Doctor', '#123c50')}{serviceCard('⇧', 'Prescription', '', 'Prescription Centre', '#1c4a38')}</View>
+    </View>
+    <View style={s.homeIntro}><View style={{ flex: 1 }}><Text style={s.homeIntroTitle}>Healthcare, all in one place</Text><Text style={s.homeIntroCopy}>Medicines, lab tests and doctor consultations, delivered with care.</Text></View><Text accessibilityElementsHidden style={s.homeIntroArt}>✚  🧪</Text></View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Upload a prescription for pharmacist review" onPress={() => go('Prescription Centre')} style={s.prescriptionHomeCard}><View style={{ flex: 1 }}><Text style={s.prescriptionHomeEyebrow}>UPLOAD PRESCRIPTION</Text><Text style={s.prescriptionHomeTitle}>Medicines after pharmacist review</Text><Text style={s.prescriptionHomeCopy}>Upload securely and review the itemised quote before payment.</Text></View><Text accessibilityElementsHidden style={s.prescriptionHomeIcon}>Rx</Text></Pressable>
     {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
       {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : null}
       <View style={s.promoShade} /><Text style={s.promoBrand}>AIMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
@@ -798,8 +805,8 @@ export function CustomerApp() {
         >
           <Text style={{ fontSize: 16 }}>⚡</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'express' ? C.mint : C.white }]}>30-60 mint Express</Text>
-            <Text style={{ fontSize: 9, color: C.muted }}>Fastest local delivery</Text>
+            <Text style={[s.rowTitle, { fontSize: 13, fontWeight: '700', color: deliveryType === 'express' ? C.mint : C.white }]}>30-60 mint Express</Text>
+            <Text style={{ fontSize: 11, color: C.muted }}>Fastest local delivery</Text>
           </View>
         </Pressable>
         <Pressable
@@ -808,8 +815,8 @@ export function CustomerApp() {
         >
           <Text style={{ fontSize: 16 }}>⏰</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'slot' ? C.mint : C.white }]}>Every 2 hrs Slot</Text>
-            <Text style={{ fontSize: 9, color: C.muted }}>10 AM to 10 PM</Text>
+            <Text style={[s.rowTitle, { fontSize: 13, fontWeight: '700', color: deliveryType === 'slot' ? C.mint : C.white }]}>Every 2 hrs Slot</Text>
+            <Text style={{ fontSize: 11, color: C.muted }}>10 AM to 10 PM</Text>
           </View>
         </Pressable>
         <Pressable
@@ -818,8 +825,8 @@ export function CustomerApp() {
         >
           <Text style={{ fontSize: 16 }}>🚚</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'same_day' ? C.mint : C.white }]}>Same Day</Text>
-            <Text style={{ fontSize: 9, color: C.muted }}>Delivered by today</Text>
+            <Text style={[s.rowTitle, { fontSize: 13, fontWeight: '700', color: deliveryType === 'same_day' ? C.mint : C.white }]}>Same Day</Text>
+            <Text style={{ fontSize: 11, color: C.muted }}>Delivered by today</Text>
           </View>
         </Pressable>
         <Pressable
@@ -828,14 +835,14 @@ export function CustomerApp() {
         >
           <Text style={{ fontSize: 16 }}>📦</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[s.rowTitle, { fontSize: 11, fontWeight: '700', color: deliveryType === 'next_day' ? C.mint : C.white }]}>Next Day</Text>
-            <Text style={{ fontSize: 9, color: C.muted }}>Delivered tomorrow</Text>
+            <Text style={[s.rowTitle, { fontSize: 13, fontWeight: '700', color: deliveryType === 'next_day' ? C.mint : C.white }]}>Next Day</Text>
+            <Text style={{ fontSize: 11, color: C.muted }}>Delivered tomorrow</Text>
           </View>
         </Pressable>
       </View>
       {deliveryType === 'slot' && (
         <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>Choose a 2-hour delivery slot (10 AM - 10 PM):</Text>
+          <Text style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Choose a 2-hour delivery slot (10 AM - 10 PM):</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             {['10:00 AM - 12:00 PM', '12:00 PM - 02:00 PM', '02:00 PM - 04:00 PM', '04:00 PM - 06:00 PM', '06:00 PM - 08:00 PM', '08:00 PM - 10:00 PM'].map((slot) => (
               <Pressable
@@ -850,7 +857,7 @@ export function CustomerApp() {
                   borderColor: deliverySlot === slot ? C.teal : C.line,
                 }}
               >
-                <Text style={{ fontSize: 10, fontWeight: deliverySlot === slot ? '700' : '500', color: deliverySlot === slot ? C.mint : C.white }}>{slot}</Text>
+                <Text style={{ fontSize: 12, fontWeight: deliverySlot === slot ? '700' : '500', color: deliverySlot === slot ? C.mint : C.white }}>{slot}</Text>
               </Pressable>
             ))}
           </View>
@@ -861,12 +868,21 @@ export function CustomerApp() {
 
   const accountScreen = () => <>
     {profile ? <View style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>{(profile.name || 'A').slice(0, 1).toUpperCase()}</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>{profile.name}</Text><Text style={s.profileSub}>{profile.phone}</Text></View><Pressable onPress={() => { void clearLoginToken(); setProfile(null); setNotice('You signed out.'); }}><Text style={s.signout}>Sign out</Text></Pressable></View> : <Pressable onPress={() => go('Sign in')} style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>S</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>Sign in to Amedix</Text><Text style={s.profileSub}>Manage your healthcare in one place</Text></View><Text style={s.arrow}>›</Text></Pressable>}
+    <View style={s.appearanceCard}>
+      <Text style={s.sectionTitle}>Appearance</Text>
+      <Text style={s.serviceSub}>Choose a comfortable display mode for this device.</Text>
+      <View style={s.appearanceOptions}>{(['Light', 'Dark'] as const).map((item) => (
+        <Pressable key={item} accessibilityRole="radio" accessibilityState={{ selected: appearance === item }} accessibilityLabel={item + ' mode'} onPress={() => { setAppearance(item); void saveAppearanceSetting(item); }} style={[s.appearanceOption, appearance === item && s.appearanceOptionSelected]}>
+          <Text style={[s.appearanceOptionText, appearance === item && s.appearanceOptionTextSelected]}>{item === 'Light' ? '☀  ' : '☾  '}{item}</Text>
+        </Pressable>
+      ))}</View>
+    </View>
     <View style={s.accountRows}>{([
       ['Personal details', '▣'], ['Medical Orders', '▱'], ['Delivery addresses', '⌖'], ['Saved products', '♡'], ['Refunds', '↶'], ['Wallet', '◉'], ['Notifications', '♧'], ['Prescription Centre', 'Rx'], ['Lab Tests', '⚗'], ['Consult a Doctor', '⚕'], ['Health log', '▤'], ['Help and support', '?'],
     ] as [Page, string][]).map(([target, icon]) => <Pressable key={target} onPress={() => void openPage(target)} style={s.accountRow}><Text style={s.rowIcon}>{icon}</Text><Text style={s.rowTitle}>{target}</Text><Text style={s.arrow}>›</Text></Pressable>)}</View>
   </>;
 
-  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{Boolean(order.delivery_slot || order.delivery_type) && <View style={{ alignSelf: 'flex-start', marginVertical: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: C.slotOnBg }}><Text style={{ color: C.mint, fontSize: 10, fontWeight: '700' }}>{order.delivery_slot || (order.delivery_type === 'express' ? '⚡ 30-60 mins Express' : order.delivery_type === 'same_day' ? '🚚 Same Day' : order.delivery_type === 'next_day' ? '📦 Next Day' : 'Delivery Slot')}</Text></View>}{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}<Pressable onPress={() => void openDoctorChat(order)}><Text style={s.seeAll}>Chat with doctor ›</Text></Pressable>{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
+  const ordersScreen = () => orders.length ? orders.map((order) => <View key={`${order.type || 'order'}-${order.id}`} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>{order.order_number || `Order #${order.id}`}</Text><Text style={s.rowSub}>{order.type ? `${order.type} · ` : ''}{String(order.order_status || order.status || 'Pending').replaceAll('_', ' ')} · {order.created_at ?? order.scheduled_at ?? ''}</Text>{Boolean(order.delivery_slot || order.delivery_type) && <View style={{ alignSelf: 'flex-start', marginVertical: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: C.slotOnBg }}><Text style={{ color: C.mint, fontSize: 12, fontWeight: '700' }}>{order.delivery_slot || (order.delivery_type === 'express' ? '⚡ 30-60 mins Express' : order.delivery_type === 'same_day' ? '🚚 Same Day' : order.delivery_type === 'next_day' ? '📦 Next Day' : 'Delivery Slot')}</Text></View>}{order.type === 'Consultation' ? <><Text style={s.rowSub}>{order.consultation_mode === 'clinic' ? 'Offline · Clinic visit' : 'Online consultation'}{order.reason ? ` · ${order.reason}` : ''}</Text>{order.meeting_url ? <Pressable onPress={() => void Linking.openURL(order.meeting_url)}><Text style={s.seeAll}>Join online consultation ↗</Text></Pressable> : null}<Pressable onPress={() => void openDoctorChat(order)}><Text style={s.seeAll}>Chat with doctor ›</Text></Pressable>{String(order.status) === 'completed' ? <View style={s.reportActions}><Pressable onPress={() => void shareConsultationFile(order, 'pdf')} style={s.reportButton}><Text style={s.reportButtonText}>Download PDF</Text></Pressable><Pressable onPress={() => void shareConsultationFile(order, 'csv')} style={s.reportButton}><Text style={s.reportButtonText}>Excel / CSV</Text></Pressable></View> : null}</> : <><Text style={s.productPrice}>{money(order.order_amount ?? order.amount)}</Text>{String(order.report_url ?? '') !== '' ? <Pressable onPress={() => void downloadLabReport(order)}><Text style={s.seeAll}>Download lab report ↓</Text></Pressable> : null}</>}</View></View>) : empty('▱', 'No bookings yet', 'Your medicine orders, lab tests, and appointments will appear here.');
 
   const servicesScreen = (isLab: boolean) => {
     const items = isLab ? labs : doctors;
@@ -914,7 +930,7 @@ export function CustomerApp() {
     if (page === 'Notifications') return notifications.length ? notifications.map((item, index) => <View key={item.id ?? index} style={s.accountRow}><Text style={s.rowIcon}>♧</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>{item.title}</Text><Text style={s.rowSub}>{item.message ?? item.body}</Text></View></View>) : empty('♧', 'No notifications yet', 'Order updates and account notifications will appear here.');
     if (page === 'Saved products') return wishlist.length ? wishlist.map((item) => <View key={item.id} style={s.accountRow}><Text style={s.rowIcon}>♡</Text><Text style={[s.rowTitle, { flex: 1 }]}>{item.name ?? item.product_name}</Text><Text style={s.productPrice}>{money(item.discount_price ?? item.price)}</Text></View>) : empty('♡', 'No saved products yet', 'Save favourite medicines from the product list.');
     if (page === 'Refunds') return orders.length ? orders.map((item) => <View key={item.id} style={s.accountRow}><Text style={s.rowIcon}>↶</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>Order #{item.order_id}</Text><Text style={s.rowSub}>{item.status}</Text></View></View>) : empty('↶', 'No refunds yet', 'Refund requests and their status will appear here.');
-    if (page === 'Wallet') return <><View style={s.walletCard}><Text style={s.rowSub}>Available balance</Text><Text style={s.walletAmount}>{money(config?.wallet?.balance)}</Text></View>{empty('◉', 'Wallet activity', 'Wallet transactions will appear here.')}</>;
+    if (page === 'Wallet') return <><View style={s.walletCard}><Text style={s.rowSub}>Available balance</Text><Text style={s.walletAmount}>{money(config?.wallet?.balance)}</Text></View>{config?.wallet?.ledger?.length ? config.wallet.ledger.map((entry: any, index: number) => <View key={String(entry.id ?? index)} style={s.accountRow}><Text style={s.rowIcon}>◉</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>{entry.description || entry.type || 'Wallet transaction'}</Text><Text style={s.rowSub}>{entry.created_at || entry.date || ''}</Text></View><Text style={s.productPrice}>{money(entry.amount)}</Text></View>) : empty('◉', 'No wallet activity yet', 'Wallet transactions will appear here.')}{config?.wallet?.withdrawals?.map((item: any, index: number) => <View key={'withdrawal-' + String(item.id ?? index)} style={s.accountRow}><Text style={s.rowIcon}>↗</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>Withdrawal · {String(item.status || 'pending').replaceAll('_', ' ')}</Text><Text style={s.rowSub}>{item.created_at || ''}</Text></View><Text style={s.productPrice}>{money(item.amount)}</Text></View>)}</>;
     if (page === 'Prescription Centre') return <>
       <View style={s.featureBanner}><Text style={s.featureEyebrow}>DOCTOR PRESCRIPTIONS</Text><Text style={s.featureTitle}>Get prescribed medicines ready for pickup</Text><Text style={s.featureCopy}>Choose an approved pharmacy in your service area. The pharmacist will check stock and notify you when everything is ready.</Text></View>
       {doctorConsultations.filter((visit) => Array.isArray(visit.prescription_items) && visit.prescription_items.length > 0).map((visit) => {
@@ -939,8 +955,8 @@ export function CustomerApp() {
       <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
       {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
     </>;
-    if (page === 'Health log') return empty('▤', 'Health records', 'Health records are not available in the connected customer API yet.');
-    if (page === 'Appearance') return <View style={s.formCard}><Text style={s.formTitle}>Appearance</Text><Text style={s.formCopy}>Choose how Amedix looks on this device. Your choice is remembered.</Text>{['Use device setting', 'Light', 'Dark'].map((item) => <Pressable key={item} onPress={() => { setAppearance(item); void saveAppearanceSetting(item); }} style={s.choice}><Text style={s.rowIcon}>{appearance === item ? '●' : '○'}</Text><Text style={s.rowTitle}>{item}</Text></Pressable>)}</View>;
+    if (page === 'Health log') return healthRecords.length ? healthRecords.map((record, index) => <View key={String(record.record_type) + '-' + String(record.id ?? index)} style={s.accountRow}><Text style={s.rowIcon}>{record.record_type === 'Lab test' ? '⚗' : '⚕'}</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>{record.record_name}</Text><Text style={s.rowSub}>{record.record_type} · {String(record.status || 'requested').replaceAll('_', ' ')} · {record.scheduled_at || record.created_at || ''}</Text>{record.report_url ? <Pressable onPress={() => void downloadLabReport(record)}><Text style={s.seeAll}>Open lab report</Text></Pressable> : null}{Array.isArray(record.prescription_items) ? record.prescription_items.map((item: any, itemIndex: number) => <Text key={String(record.id) + '-rx-' + itemIndex} style={s.rowSub}>{item.name}{item.strength ? ' · ' + item.strength : ''}{item.dosage ? ' · ' + item.dosage : ''}</Text>) : null}</View></View>) : empty('▤', 'No health records yet', 'Your lab bookings and doctor consultations will appear here after your providers add them.');
+
     if (page === 'Help and support') return <View style={s.formCard}><Text style={s.formTitle}>How can we help?</Text><TextInput value={supportSubject} onChangeText={setSupportSubject} placeholder="Subject" placeholderTextColor={C.muted} style={s.input} /><TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Describe your issue" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton('Send support request', async () => { try { await apiCall('/support', { method: 'POST', body: { subject: supportSubject, message: supportMessage } }); setSupportSubject(''); setSupportMessage(''); setNotice('Your request was sent to support.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Support request failed.'); } })}</View>;
     return empty('✚', 'Coming soon', 'This section will be available shortly.');
   };
@@ -966,15 +982,23 @@ export function CustomerApp() {
   // available from the bag button so shopping and checkout are still reachable.
   const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
 
-  return <SafeAreaView onLayout={() => { if (Platform.OS !== 'web') void SplashScreen.hideAsync(); }} style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle={isLightTheme ? 'dark-content' : 'light-content'} backgroundColor={C.bg} />
-    <View style={s.header}>{page === 'Home' ? <><Pressable onPress={() => setMenuOpen(true)} style={s.hamburger}><Text style={s.hamburgerText}>☰</Text></Pressable><Text style={s.brand}>AIMEDIX<Text style={s.brandSub}>  MEDS</Text></Text><Pressable accessibilityLabel="Open cart" onPress={() => { setPage('Cart'); setHistory((items) => [...items, page]); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable><Pressable accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.headerAction}><Text style={s.headerGlyph}>♧</Text></Pressable></> : <><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></>}</View>
+  return <SafeAreaView onLayout={() => { if (Platform.OS !== 'web') void SplashScreen.hideAsync(); }} style={s.safe} edges={['top', 'left', 'right']}><StatusBar barStyle={isLightTheme ? 'dark-content' : 'light-content'} backgroundColor={page === 'Home' ? C.homeTop : C.bg} />
+    {page === 'Home' ? <View style={s.homeHeader}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Choose delivery location" onPress={openAreaPicker} style={s.homeHeaderLocation}>
+        <Text style={s.homeHeaderPin}>●</Text>
+        <View style={{ flex: 1 }}><Text style={s.locationLabel}>Deliver to</Text><Text numberOfLines={1} style={s.locationValue}>{selectedLocation?.address ?? zones.find((zone) => zone.id === zoneId)?.name ?? 'Choose your service area'}</Text></View>
+        <Text style={s.homeHeaderChevron}>⌄</Text>
+      </Pressable>
+      <View style={s.homeHeaderActions}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => void openPage('Notifications')} style={s.homeHeaderAction}><Text style={s.homeHeaderIcon}>♧</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Orders" onPress={() => void openPage('Medical Orders')} style={s.homeHeaderAction}><Text style={s.homeHeaderIcon}>▤</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="My Account" onPress={() => { setPage('My Account'); setHistory([]); }} style={s.homeHeaderAction}><Text style={s.homeHeaderIcon}>◎</Text></Pressable>
+      </View>
+    </View> : <View style={s.header}><Pressable onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable><Text style={s.headerTitle}>{title}</Text><Pressable accessibilityLabel="Open cart" onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.headerAction}><Text style={s.headerGlyph}>▣</Text>{summary.items_count > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{summary.items_count}</Text></View>}</Pressable></View>}
     {notice && page !== 'Home' ? <Pressable onPress={() => setNotice('')} style={s.notice}><Text style={s.noticeText}>{notice}</Text><Text style={s.dismiss}>×</Text></Pressable> : null}
-    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>{pageBody()}</ScrollView>
+    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[s.content, page === 'Home' && s.homeContent]}>{pageBody()}</ScrollView>
     <View style={[s.tabs, { height: 59 + safeAreaInsets.bottom, paddingBottom: safeAreaInsets.bottom }]}>{navItems.map(([glyph, label, caption]) => <Pressable key={label} onPress={() => { setMenuOpen(false); setNotice(''); setHistory([]); if (label === 'Medical Orders') void openPage(label); else setPage(label); if (label === 'My Account' && !profile) setAuthMode('login'); }} style={s.tab}><Text style={[s.tabIcon, page === label && s.tabOn]}>{glyph}</Text><Text style={[s.tabLabel, page === label && s.tabOn]}>{caption}</Text></Pressable>)}</View>
     {menuOpen && <View style={s.menuOverlay}><Pressable onPress={() => setMenuOpen(false)} style={s.menuScrim} /><View style={s.menuPanel}><View style={s.menuTop}><Text style={s.menuBrand}>AIMEDIX</Text><Pressable onPress={() => setMenuOpen(false)}><Text style={s.closeMenu}>×</Text></Pressable></View>
-      <Text style={s.menuSection}>APP SETTINGS</Text>
-      <Pressable onPress={() => { setMenuOpen(false); setPage('Appearance'); setHistory([]); }} style={s.menuItem}><Text style={s.rowIcon}>⚙</Text><Text style={s.menuItemText}>App settings</Text><Text style={s.arrow}>›</Text></Pressable>
-      <Pressable onPress={openAreaPicker} style={s.menuItem}><Text style={s.rowIcon}>⌖</Text><Text style={s.menuItemText}>Delivery location</Text><Text style={s.arrow}>›</Text></Pressable>
       <Text style={s.menuSection}>YOUR AMEDIX</Text>{(['Home', 'Categories', 'Medical Orders', 'My Account'] as Page[]).map((item) => <Pressable key={item} onPress={() => { setMenuOpen(false); if (item === 'Medical Orders') void openPage(item); else { setPage(item); setHistory([]); } }} style={s.menuItem}><Text style={s.rowIcon}>{item === 'Categories' ? '▦' : item === 'Medical Orders' ? '▱' : '›'}</Text><Text style={s.menuItemText}>{item === 'Medical Orders' ? 'Orders' : item}</Text><Text style={s.arrow}>›</Text></Pressable>)}
       {profile ? <Pressable onPress={() => { void clearLoginToken(); setProfile(null); setMenuOpen(false); setNotice('Signed out.'); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign out</Text></Pressable> : <Pressable onPress={() => { go('Sign in'); setMenuOpen(false); }} style={s.menuSignout}><Text style={s.menuSignoutText}>Sign in / Create account</Text></Pressable>}
       <Text style={s.menuFooter}>{config?.app_name ?? 'Amedix Meds'}{backendUrl() ? '\nConnected API: ' + new URL(backendUrl()).host : ''}</Text></View></View>}
@@ -1048,6 +1072,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: C.bg
   },
+  homeHeader: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 12, backgroundColor: C.homeTop },
+  homeHeaderLocation: { flex: 1, minWidth: 0, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  homeHeaderPin: { color: C.teal, fontSize: 24, width: 34, textAlign: 'center' },
+  homeHeaderChevron: { color: C.white, fontSize: 22, paddingHorizontal: 4 },
+  homeHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  homeHeaderAction: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
+  homeHeaderIcon: { color: C.white, fontSize: 25, fontWeight: '700' },
   header: {
     height: 50,
     paddingHorizontal: 14,
@@ -1059,8 +1090,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   },
   hamburger: {
-    height: 38,
-    width: 38,
+    height: 44,
+    width: 44,
     borderRadius: 12,
     backgroundColor: C.card,
     alignItems: 'center',
@@ -1080,12 +1111,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   brandSub: {
     color: C.teal,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 2
   },
   headerAction: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -1107,6 +1138,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     fontWeight: '700',
     flex: 1
   },
+  homeContent: { paddingTop: 0 },
   content: {
     paddingHorizontal: 14,
     paddingTop: 11,
@@ -1128,12 +1160,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   locationLabel: {
     color: C.muted,
-    fontSize: 10
+    fontSize: 12
 
   },
   locationValue: {
     color: C.white,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 2
 
@@ -1142,17 +1174,21 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     color: C.arrow,
     fontSize: 21
   },
+  homeTopPanel: { marginHorizontal: -14, paddingHorizontal: 18, paddingTop: 0, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, backgroundColor: C.homeTop, marginBottom: 18 },
+  deliveryPromise: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, marginBottom: 12 },
+  deliveryDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.teal },
+  deliveryPromiseText: { color: C.white, fontSize: 14, fontWeight: '800', lineHeight: 19 },
+  deliveryPromiseIcon: { color: C.teal, fontSize: 24, fontWeight: '700' },
   searchBox: {
-    height: 43,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.card,
-    borderRadius: 12,
+    backgroundColor: C.bg,
+    borderRadius: 25,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: C.searchLine,
-    marginBottom: 12
-
+    marginBottom: 12,
   },
   searchIcon: {
     fontSize: 22,
@@ -1162,7 +1198,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flex: 1,
     color: C.white,
     marginLeft: 8,
-    fontSize: 12,
+    fontSize: 14,
     paddingVertical: 4
   },
   searchMic: {
@@ -1170,47 +1206,28 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     fontSize: 18
   },
 
-  serviceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 9,
-    marginBottom: 15
-  },
-  serviceCard: {
-    width: '49%',
-    minHeight: 72,
-    padding: 10,
-    borderRadius: 14,
-    backgroundColor: C.card,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  serviceIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  serviceGlyph: {
-    color: C.mint,
-    fontSize: 18
-  },
-  serviceTitle: {
-    color: C.white,
-    fontSize: 10,
-    fontWeight: '800'
-  },
+  homeIntro: { minHeight: 150, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, marginBottom: 13 },
+  homeIntroTitle: { color: C.white, fontSize: 23, lineHeight: 29, fontWeight: '900', maxWidth: 220 },
+  homeIntroCopy: { color: C.muted, fontSize: 15, lineHeight: 22, marginTop: 8, maxWidth: 260 },
+  homeIntroArt: { color: C.teal, fontSize: 35, fontWeight: '800' },
+  prescriptionHomeCard: { minHeight: 140, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 17, borderRadius: 17, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, marginBottom: 17 },
+  prescriptionHomeEyebrow: { color: C.teal, fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  prescriptionHomeTitle: { color: C.white, fontSize: 18, lineHeight: 23, fontWeight: '900' },
+  prescriptionHomeCopy: { color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  prescriptionHomeIcon: { color: C.teal, backgroundColor: C.slotOnBg, fontSize: 21, fontWeight: '900', overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 22, borderRadius: 20 },
+  serviceGrid: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 8 },
+  serviceCard: { width: '24%', minHeight: 104, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 4, gap: 7 },
+  serviceIcon: { width: 58, height: 58, borderRadius: 29, backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, justifyContent: 'center', alignItems: 'center' },
+  serviceGlyph: { color: C.teal, fontSize: 23, fontWeight: '800' },
+  serviceTitle: { color: C.softText, fontSize: 13, fontWeight: '800', textAlign: 'center' },
   serviceSub: {
     color: C.muted,
-    fontSize: 8,
+    fontSize: 10,
     marginTop: 4
   },
   demoOnlyBadge: {
     color: C.demoBadge,
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.4,
     marginBottom: 6
@@ -1240,7 +1257,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   promoBrand: {
     color: '#c4fff6',
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.4
   },
@@ -1253,12 +1270,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   promoCopy: {
     color: '#dcfffa',
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 5
   },
   promoCta: {
     color: 'white',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '900',
     marginTop: 13,
     letterSpacing: 0.7
@@ -1292,7 +1309,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     fontSize: 14
   },
   seeAll: {
-    color: C.teal, fontSize: 10,
+    color: C.teal, fontSize: 12,
     fontWeight: '700'
   },
   reportActions: {
@@ -1312,7 +1329,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   reportButtonText: {
     color: C.mint,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '800'
   },
   categoryRow: {
@@ -1335,12 +1352,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   allProductsCard: { width: '100%', minHeight: 70, flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 12, borderColor: C.allProductsLine },
   categoryCardImage: { width: 58, height: 58, borderRadius: 12 },
   datePickerButton: { minHeight: 44, borderRadius: 9, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.inputLine, paddingHorizontal: 11, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  datePickerValue: { color: C.white, fontSize: 11, fontWeight: '700' }, datePickerPlaceholder: { color: C.muted, fontSize: 11 },
+  datePickerValue: { color: C.white, fontSize: 13, fontWeight: '700' }, datePickerPlaceholder: { color: C.muted, fontSize: 13 },
   calendarMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12 }, calendarMonthTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
   calendarNav: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.raised, alignItems: 'center', justifyContent: 'center' }, calendarNavText: { color: C.mint, fontSize: 24, lineHeight: 27 },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, calendarWeekday: { width: '14.28%', textAlign: 'center', color: C.muted, fontSize: 9, fontWeight: '700', paddingVertical: 7 },
-  calendarDay: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }, calendarDaySelected: { backgroundColor: C.tealDark }, calendarDayDisabled: { opacity: 0.35 }, calendarDayText: { color: C.white, fontSize: 11 }, calendarDayTextSelected: { color: 'white', fontWeight: '900' }, calendarDayTextDisabled: { color: C.muted },
-  calendarSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 8 }, calendarSlot: { width: '23%', alignItems: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line }, calendarSlotSelected: { backgroundColor: C.slotOnBg, borderColor: C.teal }, calendarSlotText: { color: C.softText, fontSize: 10 }, calendarSlotTextSelected: { color: C.mint, fontWeight: '800' }, calendarConfirm: { marginTop: 5 }, calendarConfirmDisabled: { opacity: 0.45 },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, calendarWeekday: { width: '14.28%', textAlign: 'center', color: C.muted, fontSize: 11, fontWeight: '700', paddingVertical: 7 },
+  calendarDay: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }, calendarDaySelected: { backgroundColor: C.tealDark }, calendarDayDisabled: { opacity: 0.35 }, calendarDayText: { color: C.white, fontSize: 13 }, calendarDayTextSelected: { color: 'white', fontWeight: '900' }, calendarDayTextDisabled: { color: C.muted },
+  calendarSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 8 }, calendarSlot: { width: '23%', alignItems: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line }, calendarSlotSelected: { backgroundColor: C.slotOnBg, borderColor: C.teal }, calendarSlotText: { color: C.softText, fontSize: 12 }, calendarSlotTextSelected: { color: C.mint, fontWeight: '800' }, calendarConfirm: { marginTop: 5 }, calendarConfirmDisabled: { opacity: 0.45 },
 
   categoryEmoji: {
     color: C.teal,
@@ -1348,14 +1365,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   categoryText: {
     color: C.softText,
-    fontSize: 8,
+    fontSize: 10,
      fontWeight: '700',
     textAlign: 'center', lineHeight: 11
   },
   chatBubble: { maxWidth: '85%', alignSelf: 'flex-start', backgroundColor: C.tileBg, padding: 10, borderRadius: 11 },
   chatBubbleMine: { alignSelf: 'flex-end', backgroundColor: C.chatMineBg },
-  chatMessage: { color: C.white, fontSize: 10, lineHeight: 15 },
-  chatTime: { color: C.muted, fontSize: 7, marginTop: 5 },
+  chatMessage: { color: C.white, fontSize: 12, lineHeight: 15 },
+  chatTime: { color: C.muted, fontSize: 9, marginTop: 5 },
   filterChip: {
     borderRadius: 20,
     borderWidth: 1,
@@ -1370,7 +1387,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   filterText: {
     color: C.textSofter,
-    fontSize: 10
+    fontSize: 12
   },
   filterTextOn: {
     color: C.mint
@@ -1393,7 +1410,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   zoneText: {
     color: C.zoneText,
-    fontSize: 10
+    fontSize: 12
   },
   zoneTextSelected: {
     color: C.mint
@@ -1484,30 +1501,30 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     top: 6,
     color: '#052a26',
     backgroundColor: '#9af5e2',
-    fontSize: 7,
+    fontSize: 9,
     fontWeight: '900',
     borderRadius: 5,
     paddingHorizontal: 5,
     paddingVertical: 3
   },
   productCategory: {
-    color: C.teal, fontSize: 8, fontWeight: '700',
+    color: C.teal, fontSize: 10, fontWeight: '700',
     marginBottom: 3
   },
   productName: {
     color: C.white,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '800',
     minHeight: 28
   },
   productDesc: {
     color: C.muted,
-    fontSize: 8,
+    fontSize: 10,
     marginTop: 4
   },
   rxNote: {
     color: C.rxNote,
-    fontSize: 7,
+    fontSize: 9,
     marginTop: 5
   },
   productFooter: {
@@ -1519,19 +1536,19 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   productPrice: {
     color: C.white,
     fontWeight: '900',
-    fontSize: 12
+    fontSize: 14
   },
   mrp: {
     color: C.muted,
-    fontSize: 8,
+    fontSize: 10,
     marginTop: 3
   },
   strike: {
     textDecorationLine: 'line-through'
   },
   addButton: {
-    minWidth: 30,
-    height: 29,
+    minWidth: 44,
+    height: 44,
     paddingHorizontal: 8,
     backgroundColor: C.tealDark,
     alignItems: 'center',
@@ -1568,7 +1585,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   tabLabel: {
     color: C.tabLabel,
-    fontSize: 8
+    fontSize: 10
   },
   cartBadge: {
     position: 'absolute',
@@ -1579,12 +1596,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     minWidth: 15,
     height: 15,
     alignItems: 'center', justifyContent: 'center'
-  }, cartBadgeText: { color: 'white', fontSize: 8, fontWeight: '800' },
-  configBanner: { backgroundColor: C.configBg, padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 11, fontWeight: '800' }, configText: { color: C.configText, fontSize: 9, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: C.noticeBg, marginBottom: 10, gap: 8 }, noticeText: { color: C.noticeText, fontSize: 10, flex: 1 }, dismiss: { color: C.noticeText, fontSize: 19 },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 16 }, emptyGlyph: { color: C.teal, fontSize: 28, marginBottom: 9 }, emptyTitle: { color: C.emptyTitle, fontSize: 12, fontWeight: '700', textAlign: 'center' }, emptyCopy: { color: C.muted, fontSize: 9, textAlign: 'center', marginTop: 5, lineHeight: 14, maxWidth: 245 },
-  cartNudge: { backgroundColor: C.nudgeBg, borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: C.nudgeGlyph, fontSize: 17 }, nudgeText: { color: C.nudgeText, fontSize: 10, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: C.tileBg, alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 10, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 8, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 23, height: 22, borderRadius: 6, backgroundColor: C.qtyBg, alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 10 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 8 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: C.summaryLabel, fontSize: 10 }, summaryValue: { color: C.summaryValue, fontSize: 10, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 12, fontWeight: '900' }, green: { color: C.green }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: C.loginPromptBg }, loginPromptText: { color: C.mint, fontSize: 9 }, checkoutAddressTitle: { color: C.white, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 40, borderRadius: 9, backgroundColor: C.inputBg, color: C.white, fontSize: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: C.inputLine },
-  button: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 10, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.outlineLine }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 9, marginTop: 3 }, signout: { color: 'white', fontSize: 9, fontWeight: '800' }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: C.summaryValue, fontSize: 10, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 8, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 11, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 8, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 9, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: C.inputBg, gap: 8, marginBottom: 7 }, filePickerText: { color: C.fieldLabel, fontSize: 9, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 9, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 10, fontWeight: '700' }, fieldLabel: { color: C.fieldLabel, fontSize: 9, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
-  menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: C.menuBg, height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: C.menuBorder }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: C.menuSection, fontSize: 8, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: C.menuItemLine }, menuItemText: { color: C.menuItemText, fontSize: 10, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: C.menuSignoutLine, alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 10, fontWeight: '800' }, menuFooter: { color: C.menuFooter, fontSize: 8, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
-  areaPickerModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'transparent' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: C.sheetBg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: C.noticeText, fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: C.zoneText, backgroundColor: C.inputBg, borderRadius: 9, padding: 10, fontSize: 9, lineHeight: 14, marginTop: 8 },
+  }, cartBadgeText: { color: 'white', fontSize: 10, fontWeight: '800' },
+  configBanner: { backgroundColor: C.configBg, padding: 12, borderRadius: 12, marginBottom: 10 }, configTitle: { color: C.mint, fontSize: 13, fontWeight: '800' }, configText: { color: C.configText, fontSize: 11, lineHeight: 14, marginTop: 4 }, notice: { flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 11, backgroundColor: C.noticeBg, marginBottom: 10, gap: 8 }, noticeText: { color: C.noticeText, fontSize: 12, flex: 1 }, dismiss: { color: C.noticeText, fontSize: 19 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 16 }, emptyGlyph: { color: C.teal, fontSize: 28, marginBottom: 9 }, emptyTitle: { color: C.emptyTitle, fontSize: 14, fontWeight: '700', textAlign: 'center' }, emptyCopy: { color: C.muted, fontSize: 11, textAlign: 'center', marginTop: 5, lineHeight: 14, maxWidth: 245 },
+  cartNudge: { backgroundColor: C.nudgeBg, borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, nudgeGlyph: { color: C.nudgeGlyph, fontSize: 17 }, nudgeText: { color: C.nudgeText, fontSize: 12, fontWeight: '700', flex: 1, lineHeight: 15 }, cartRow: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: C.card, padding: 9, borderRadius: 12, marginBottom: 8 }, cartImage: { width: 53, height: 53, borderRadius: 9 }, cartFallback: { backgroundColor: C.tileBg, alignItems: 'center', justifyContent: 'center' }, cartName: { color: C.white, fontSize: 12, fontWeight: '800' }, cartSub: { color: C.muted, fontSize: 10, marginTop: 3 }, qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 7 }, qtyButton: { width: 40, height: 40, borderRadius: 6, backgroundColor: C.qtyBg, alignItems: 'center', justifyContent: 'center' }, qtyText: { color: C.mint, fontSize: 14 }, qtyValue: { color: C.white, fontSize: 12 }, remove: { marginLeft: 3 }, removeText: { color: C.red, fontSize: 10 }, summaryCard: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginTop: 6 }, summaryTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginBottom: 8 }, summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, summaryLabel: { color: C.summaryLabel, fontSize: 12 }, summaryValue: { color: C.summaryValue, fontSize: 12, fontWeight: '600' }, summaryStrong: { color: C.white, fontSize: 14, fontWeight: '900' }, green: { color: C.green }, summaryDivider: { height: 1, backgroundColor: C.line, marginTop: 4 }, loginPrompt: { padding: 10, marginTop: 7, borderRadius: 9, backgroundColor: C.loginPromptBg }, loginPromptText: { color: C.mint, fontSize: 11 }, checkoutAddressTitle: { color: C.white, fontSize: 12, fontWeight: '800', marginTop: 12, marginBottom: 6 }, addressInput: { height: 70, textAlignVertical: 'top' }, input: { minHeight: 46, borderRadius: 9, backgroundColor: C.inputBg, color: C.white, fontSize: 12, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 7, borderWidth: 1, borderColor: C.inputLine },
+  button: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.tealDark, paddingHorizontal: 12, marginTop: 7 }, buttonText: { color: 'white', fontSize: 12, fontWeight: '900' }, buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.outlineLine }, buttonTextOutline: { color: C.mint }, profileBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 15, padding: 12, backgroundColor: '#078f86', gap: 10, marginBottom: 13 }, avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#e7fbf8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: C.tealDark, fontWeight: '900', fontSize: 18 }, profileName: { color: 'white', fontSize: 13, fontWeight: '800' }, profileSub: { color: '#dbfff9', fontSize: 11, marginTop: 3 }, signout: { color: 'white', fontSize: 11, fontWeight: '800' }, appearanceCard: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line }, appearanceOptions: { flexDirection: 'row', gap: 10, marginTop: 12 }, appearanceOption: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: C.line, backgroundColor: C.raised }, appearanceOptionSelected: { borderColor: C.teal, backgroundColor: C.slotOnBg }, appearanceOptionText: { color: C.softText, fontSize: 13, fontWeight: '700' }, appearanceOptionTextSelected: { color: C.mint }, accountRows: { gap: 7, marginTop: 4 }, accountRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 11, backgroundColor: C.card, gap: 11 }, rowIcon: { color: C.teal, fontSize: 17, width: 24, textAlign: 'center' }, rowTitle: { color: C.summaryValue, fontSize: 12, fontWeight: '700', flex: 1 }, rowSub: { color: C.muted, fontSize: 10, marginTop: 4 }, orderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, padding: 13, borderRadius: 13, marginBottom: 8 }, orderTitle: { color: C.white, fontSize: 13, fontWeight: '800' }, serviceListing: { backgroundColor: C.card, padding: 13, borderRadius: 14, marginBottom: 9 }, serviceListingTag: { color: C.teal, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }, serviceListingName: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 6 }, featureBanner: { backgroundColor: '#078f86', padding: 16, borderRadius: 15, marginBottom: 13 }, featureEyebrow: { color: '#b8fff3', fontSize: 10, letterSpacing: 1.5, fontWeight: '800', marginBottom: 7 }, featureTitle: { color: 'white', fontWeight: '900', fontSize: 18 }, featureCopy: { color: '#d5fffa', fontSize: 11, lineHeight: 14, marginTop: 6 }, filePicker: { minHeight: 42, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 9, backgroundColor: C.inputBg, gap: 8, marginBottom: 7 }, filePickerText: { color: C.fieldLabel, fontSize: 11, flex: 1 }, formCard: { backgroundColor: C.card, padding: 14, borderRadius: 14 }, formTitle: { color: C.white, fontSize: 18, fontWeight: '900', marginBottom: 5 }, formCopy: { color: C.muted, fontSize: 11, lineHeight: 14, marginBottom: 13 }, modeSwap: { alignItems: 'center', paddingVertical: 14 }, modeSwapText: { color: C.teal, fontSize: 12, fontWeight: '700' }, fieldLabel: { color: C.fieldLabel, fontSize: 11, fontWeight: '700', marginVertical: 6 }, walletCard: { padding: 18, borderRadius: 15, backgroundColor: '#078f86', marginBottom: 14 }, walletAmount: { color: 'white', fontSize: 26, fontWeight: '900', marginTop: 5 }, choice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 }, modalCard: { backgroundColor: C.raised, padding: 14, borderRadius: 13, marginTop: 12 },
+  menuOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, flexDirection: 'row' }, menuScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.6)' }, menuPanel: { width: '83%', maxWidth: 350, backgroundColor: C.menuBg, height: '100%', paddingHorizontal: 16, paddingTop: 13, borderRightWidth: 1, borderColor: C.menuBorder }, menuTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, marginBottom: 10 }, menuBrand: { color: C.mint, fontSize: 16, fontWeight: '900', letterSpacing: 1 }, closeMenu: { color: C.white, fontSize: 25 }, menuSection: { color: C.menuSection, fontSize: 10, fontWeight: '900', letterSpacing: 1.4, marginTop: 10, marginBottom: 5 }, menuItem: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: C.menuItemLine }, menuItemText: { color: C.menuItemText, fontSize: 12, flex: 1 }, menuSignout: { borderRadius: 9, padding: 11, borderWidth: 1, borderColor: C.menuSignoutLine, alignItems: 'center', marginTop: 14 }, menuSignoutText: { color: C.mint, fontSize: 12, fontWeight: '800' }, menuFooter: { color: C.menuFooter, fontSize: 10, lineHeight: 13, marginTop: 'auto', paddingVertical: 14 },
+  areaPickerModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'transparent' }, areaPickerScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,.62)' }, areaPickerSheet: { maxHeight: '82%', backgroundColor: C.sheetBg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, borderWidth: 1, borderColor: C.line }, areaPickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }, areaPickerTitle: { color: C.white, fontSize: 17, fontWeight: '900' }, areaPickerCopy: { color: C.muted, fontSize: 12, lineHeight: 15, marginTop: 5, maxWidth: 280 }, areaPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }, areaPickerContent: { paddingBottom: 6 }, locationNotice: { color: C.noticeText, fontSize: 12, lineHeight: 15, marginTop: 8, marginBottom: 4 }, locationCoverageNote: { color: C.zoneText, backgroundColor: C.inputBg, borderRadius: 9, padding: 10, fontSize: 11, lineHeight: 14, marginTop: 8 },
 });
 
