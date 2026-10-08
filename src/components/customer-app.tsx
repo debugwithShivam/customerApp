@@ -3,6 +3,7 @@ import { Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet,
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -1476,6 +1477,47 @@ export function CustomerApp() {
     }
   };
 
+  const capturePrescription = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setNotice('Allow camera access to photograph your prescription.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.7, base64: true });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (!asset.uri) return;
+      const size = asset.fileSize ?? 0;
+      if (size > 5 * 1024 * 1024) {
+        setNotice('Photo is larger than 5 MB. Please retake it.');
+        return;
+      }
+      setPrescriptionAsset({
+        uri: asset.uri,
+        name: asset.fileName ?? `prescription-${Date.now()}.jpg`,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        base64: asset.base64 ?? '',
+        size,
+      } as unknown as DocumentPicker.DocumentPickerAsset);
+      setNotice('');
+    } catch {
+      setNotice('Could not open the camera. Please try again.');
+    }
+  };
+
+  const prescriptionWhatsAppNumber = () => String(config?.contact?.whatsapp_number ?? '').replace(/\D+/g, '') || '919838887549';
+
+  const openPrescriptionWhatsApp = async () => {
+    const message = String(config?.contact?.whatsapp_message ?? 'Hello AIMEDIX MEDS, I need help ordering prescription medicines.');
+    const url = `https://wa.me/${prescriptionWhatsAppNumber()}?text=${encodeURIComponent(message)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setNotice('Could not open WhatsApp. Message us at +91 98388 87549.');
+    }
+  };
+
   const submitPrescription = async () => {
     if (!profile) {
       setNotice('Sign in to upload a prescription.');
@@ -1846,7 +1888,7 @@ export function CustomerApp() {
         </View>;
       })}
       {prescriptions.filter((item) => item.quote).map((item) => <View key={`quote-request-${item.id}`} style={s.formCard}><Text style={s.sectionTitle}>Pharmacy quote - Request #{item.id}</Text><Text style={s.rowSub}>{item.pharmacy_name || 'Assigned pharmacy'} - {String(item.status).replaceAll('_', ' ')}</Text>{item.quote.items?.map((line: any, index: number) => <Text key={`quote-line-${item.id}-${index}`} style={s.rowSub}>{line.medicine_name} x {line.quantity} - {money(Number(line.line_total))}</Text>)}<Text style={s.productPrice}>Total: {money(Number(item.quote.total))}</Text>{item.status === 'quoted' && item.quote.status === 'offered' ? primaryButton(busy ? 'Working...' : 'Accept quote', () => void acceptPrescriptionQuote(item)) : null}{item.status === 'payment_pending' && item.quote.status === 'accepted' ? <>{addresses.length ? <Text style={s.rowSub}>Delivery address - {(addresses.find((address) => Number(address.is_default) === 1) ?? addresses[0]).address}</Text> : <TextInput value={addressText} onChangeText={setAddressText} placeholder="Delivery address, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />}{prescriptionPaymentMethods.map((method: any) => <Pressable key={method.id} onPress={() => setPrescriptionPaymentMethod(method.id)} style={s.choice}><Text style={s.rowIcon}>{prescriptionPaymentMethod === method.id ? 'X' : 'O'}</Text><Text style={s.rowTitle}>{method.name ?? method.label ?? method.id}</Text></Pressable>)}{prescriptionPaymentMethod !== 'cash_on_delivery' ? <TextInput value={prescriptionPaymentReference} onChangeText={setPrescriptionPaymentReference} placeholder="Payment / transaction reference" placeholderTextColor={C.muted} style={s.input} /> : null}{primaryButton(busy ? 'Placing order...' : 'Place medicine order', () => void checkoutPrescriptionQuote(item))}</> : null}{item.order ? <Text style={s.rowTitle}>Order {item.order.order_number} - {String(item.order.order_status || 'pending').replaceAll('_', ' ')}</Text> : null}</View>)}
-      <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
+      <View style={s.formCard}><Text style={s.fieldLabel}>Upload a prescription image or PDF (up to 5 MB)</Text><Pressable onPress={() => void pickPrescription()} style={s.filePicker}><Text style={s.rowIcon}>▧</Text><Text style={s.filePickerText}>{prescriptionAsset?.name ?? 'Choose from camera or files'}</Text><Text style={s.seeAll}>Browse</Text></Pressable><View style={{ flexDirection: 'row', gap: 8, marginBottom: 7 }}><Pressable onPress={() => void capturePrescription()} style={[s.button, { flex: 1, marginTop: 0 }]}><Text style={s.buttonText}>Camera</Text></Pressable><Pressable onPress={() => void openPrescriptionWhatsApp()} style={[s.button, { flex: 1, marginTop: 0, backgroundColor: '#1faa53' }]}><Text style={s.buttonText}>WhatsApp</Text></Pressable></View><Text style={s.fieldLabel}>Note for the pharmacist (optional)</Text><TextInput value={prescriptionNote} onChangeText={setPrescriptionNote} placeholder="Add a note for the pharmacist" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Uploading…' : 'Upload prescription for a quote', () => void submitPrescription())}</View>
       {prescriptions.filter((item) => item.prescription_source !== 'doctor').length ? <>{section('My uploaded prescription requests')}{prescriptions.filter((item) => item.prescription_source !== 'doctor').map((item, index) => <View key={item.id ?? index} style={s.orderCard}><View style={{ flex: 1 }}><Text style={s.orderTitle}>Request #{item.id ?? index + 1}</Text><Text style={s.rowSub}>{String(item.status ?? 'pending').replaceAll('_', ' ')} · {item.created_at ?? ''}</Text>{item.total ? <Text style={s.productPrice}>{money(item.total)}</Text> : null}</View><Text style={s.arrow}>›</Text></View>)}</> : null}
     </>;
     if (page === 'Health log') return healthRecords.length ? healthRecords.map((record, index) => <View key={String(record.record_type) + '-' + String(record.id ?? index)} style={s.accountRow}><Text style={s.rowIcon}>{record.record_type === 'Lab test' ? '⚗' : '⚕'}</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>{record.record_name}</Text><Text style={s.rowSub}>{record.record_type} · {String(record.status || 'requested').replaceAll('_', ' ')} · {record.scheduled_at || record.created_at || ''}</Text>{record.report_url ? <Pressable onPress={() => void downloadLabReport(record)}><Text style={s.seeAll}>Open lab report</Text></Pressable> : null}{Array.isArray(record.prescription_items) ? record.prescription_items.map((item: any, itemIndex: number) => <Text key={String(record.id) + '-rx-' + itemIndex} style={s.rowSub}>{item.name}{item.strength ? ' · ' + item.strength : ''}{item.dosage ? ' · ' + item.dosage : ''}</Text>) : null}</View></View>) : empty('▤', 'No health records yet', 'Your lab bookings and doctor consultations will appear here after your providers add them.');
