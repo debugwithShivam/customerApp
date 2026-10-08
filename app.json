@@ -1,18 +1,18 @@
 {
   "expo": {
     "name": "AIMEDIX MEDS",
-    "slug": "aimedix-partner",
+    "slug": "aimedix-customer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
-    "scheme": "aimedixpartner",
+    "scheme": "aimedixcustomer",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.aimedixmeds.partnerapp",
+      "bundleIdentifier": "com.aimedixmeds.customerapp",
       "icon": "./assets/appicon.png"
     },
     "android": {
-      "package": "com.aimedixmeds.partnerapp",
+      "package": "com.aimedixmeds.customerapp",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/appicon.png"
@@ -30,7 +30,8 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/appicon-splash.png",
-          "imageWidth": 300
+          "imageWidth": 100,
+          "resizeMode": "contain"
         }
       ],
       "expo-secure-store"

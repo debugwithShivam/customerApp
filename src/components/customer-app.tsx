@@ -12,6 +12,7 @@ import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLogi
 import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
 type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+
 type Subcategory = {
   id: number;
   category_id: number;
@@ -19,31 +20,239 @@ type Subcategory = {
   slug?: string;
   image_full_url?: string;
 };
+
 type Category = {
   id: number;
   name: string;
   image_full_url?: string;
   subcategories?: Subcategory[];
 };
-type Product = { id: number; name: string; description?: string; unit?: string; price: number; discount_price?: number | null; stock: number; medicine_type?: string; category_id?: number; category_name?: string; subcategory_id?: number | null; subcategory_name?: string; thumbnail_full_url?: string; is_demo?: boolean };
-type Banner = { id: number; title?: string; subtitle?: string; image_full_url?: string; action_text?: string };
-type CartItem = { id: number; product_id: number; name: string; quantity: number; price: number; unit?: string; thumbnail_full_url?: string; stock?: number };
-type Zone = { id: number; name: string; city?: string; state?: string; pincode?: string; latitude?: number | string; longitude?: number | string };
-type LocationChoice = MapPin & { address: string; pincode?: string; city?: string };
-type Summary = { subtotal: number; medicine_discount: number; coupon_discount: number; total_discount: number; tax_total: number; delivery_charge: number; platform_fee: number; extra_discount_threshold: number; total: number; items_count: number };
-type Profile = { id: number; name: string; phone: string; email?: string };
 
-const darkPalette = { bg: '#050a0b', homeTop: '#082522', card: '#141a1d', raised: '#1c2428', line: '#273136', teal: '#00b7a7', tealDark: '#087f78', mint: '#c7fff3', muted: '#879398', white: '#f5f8f8', red: '#ff8888', headerLine: '#152022', searchLine: '#20292c', arrow: '#89969b', demoBadge: '#ffca72', dot: '#415151', reportLine: '#27655f', reportBg: '#172423', allProductsLine: '#17645e', inputBg: '#20272b', inputLine: '#293135', slotOnBg: '#0b554e', softText: '#d2dadd', textSofter: '#c3cccf', chipOnBg: '#064d48', zoneOnBg: '#063d3a', zoneText: '#bdc7ca', productLine: '#1d272a', tileBg: '#20282c', heartBg: '#0c1416', rxNote: '#e5bd80', disabledBg: '#454c4e', tabsBorder: '#20282b', tabsBg: '#090e10', tabIcon: '#728085', tabLabel: '#879297', configBg: '#15322e', configText: '#b3c5c5', noticeBg: '#3d2c16', noticeText: '#f6dcaa', emptyTitle: '#e5eeee', nudgeBg: '#0b4239', nudgeGlyph: '#8ef6cc', nudgeText: '#d4ffec', qtyBg: '#253033', summaryLabel: '#b1bcbe', summaryValue: '#e8eeee', green: '#78e4aa', loginPromptBg: '#123433', outlineLine: '#185350', fieldLabel: '#dbe3e4', chatMineBg: '#075d55', menuBg: '#0b1113', menuBorder: '#263135', menuSection: '#78878c', menuItemText: '#e0e8e9', menuItemLine: '#1b2629', menuSignoutLine: '#20413e', menuFooter: '#657277', sheetBg: '#101719' };
-const lightPalette: Palette = { bg: '#f1f5f4', homeTop: '#e5f0ee', card: '#ffffff', raised: '#e9efee', line: '#d8e2e0', teal: '#00968a', tealDark: '#0a8f86', mint: '#066d64', muted: '#5c6a6d', white: '#152120', red: '#c0392b', headerLine: '#e0e7e6', searchLine: '#dbe3e2', arrow: '#667478', demoBadge: '#8a6116', dot: '#b6c2c1', reportLine: '#a4d8d2', reportBg: '#e6f3f1', allProductsLine: '#a4d8d2', inputBg: '#eef3f2', inputLine: '#d8e2e0', slotOnBg: '#c4ebe6', softText: '#3c4a4c', textSofter: '#44514f', chipOnBg: '#d2efeb', zoneOnBg: '#d2efeb', zoneText: '#4c5a5c', productLine: '#e3e9e8', tileBg: '#e9efee', heartBg: '#f6f9f8', rxNote: '#8a6116', disabledBg: '#bac3c2', tabsBorder: '#e0e7e6', tabsBg: '#ffffff', tabIcon: '#7f8d90', tabLabel: '#6a777a', configBg: '#dcf0ec', configText: '#3d5a55', noticeBg: '#fbeecd', noticeText: '#7a5410', emptyTitle: '#223030', nudgeBg: '#d7f2ea', nudgeGlyph: '#0c7d5f', nudgeText: '#0d5c48', qtyBg: '#dee5e4', summaryLabel: '#4a595b', summaryValue: '#223030', green: '#0c8a5f', loginPromptBg: '#d9efec', outlineLine: '#a4d8d2', fieldLabel: '#3c4a4c', chatMineBg: '#c4ebe6', menuBg: '#ffffff', menuBorder: '#dbe3e2', menuSection: '#6a777a', menuItemText: '#223030', menuItemLine: '#e9efee', menuSignoutLine: '#a4d8d2', menuFooter: '#7f8d90', sheetBg: '#ffffff' };
+type Product = {
+  id: number;
+  name: string;
+  description?: string;
+  unit?: string;
+  price: number;
+  discount_price?:
+  number | null;
+  stock: number;
+  medicine_type?: string;
+  category_id?: number;
+  category_name?: string;
+  subcategory_id?: number | null;
+  subcategory_name?: string;
+  thumbnail_full_url?: string;
+  is_demo?: boolean
+};
+
+type Banner = {
+  id: number;
+  title?: string;
+  subtitle?: string;
+  image_full_url?: string;
+  action_text?: string
+};
+
+type CartItem = {
+  id: number;
+  product_id: number;
+  name: string;
+  quantity: number;
+  price: number;
+  unit?: string;
+  thumbnail_full_url?: string;
+  stock?: number
+};
+
+type Zone = {
+  id: number;
+  name: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  latitude?: number | string;
+  longitude?: number | string
+};
+
+type LocationChoice = MapPin & {
+  address: string;
+  pincode?: string;
+  city?: string
+};
+
+type Summary = {
+  subtotal: number;
+  medicine_discount: number;
+  coupon_discount: number;
+  total_discount: number;
+  tax_total: number;
+  delivery_charge: number;
+  platform_fee: number;
+  extra_discount_threshold: number;
+  total: number;
+  items_count: number
+};
+
+type Profile = {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string
+};
+
+const darkPalette = {
+  bg: '#050a0b',
+  homeTop: '#082522',
+  card: '#141a1d',
+  raised: '#1c2428',
+  line: '#273136',
+  teal: '#00b7a7',
+  tealDark: '#087f78',
+  mint: '#c7fff3',
+  muted: '#879398',
+  white: '#f5f8f8',
+  red: '#ff8888',
+  headerLine: '#152022',
+  searchLine: '#20292c',
+  arrow: '#89969b',
+  demoBadge: '#ffca72',
+  dot: '#415151',
+  reportLine: '#27655f',
+  reportBg: '#172423',
+  allProductsLine: '#17645e',
+  inputBg: '#20272b',
+  inputLine: '#293135',
+  slotOnBg: '#0b554e',
+  softText: '#d2dadd',
+  textSofter: '#c3cccf',
+  chipOnBg: '#064d48',
+  zoneOnBg: '#063d3a',
+  zoneText: '#bdc7ca',
+  productLine: '#1d272a',
+  tileBg: '#20282c',
+  heartBg: '#0c1416',
+  rxNote: '#e5bd80',
+  disabledBg: '#454c4e',
+  tabsBorder: '#20282b',
+  tabsBg: '#090e10',
+  tabIcon: '#728085',
+  tabLabel: '#879297',
+  configBg: '#15322e',
+  configText: '#b3c5c5',
+  noticeBg: '#3d2c16',
+  noticeText: '#f6dcaa',
+  emptyTitle: '#e5eeee',
+  nudgeBg: '#0b4239',
+  nudgeGlyph: '#8ef6cc',
+  nudgeText: '#d4ffec',
+  qtyBg: '#253033',
+  summaryLabel: '#b1bcbe',
+  summaryValue: '#e8eeee',
+  green: '#78e4aa',
+  loginPromptBg: '#123433',
+  outlineLine: '#185350',
+  fieldLabel: '#dbe3e4',
+  chatMineBg: '#075d55',
+  menuBg: '#0b1113',
+  menuBorder: '#263135',
+  menuSection: '#78878c',
+  menuItemText: '#e0e8e9',
+  menuItemLine: '#1b2629',
+  menuSignoutLine: '#20413e',
+  menuFooter: '#657277',
+  sheetBg: '#101719'
+};
+
+const lightPalette: Palette = {
+  bg: '#f1f5f4',
+  homeTop: '#e5f0ee',
+  card: '#ffffff',
+  raised: '#e9efee',
+  line: '#d8e2e0',
+  teal: '#00968a',
+  tealDark: '#0a8f86',
+  mint: '#066d64',
+  muted: '#5c6a6d',
+  white: '#152120',
+  red: '#c0392b',
+  headerLine: '#e0e7e6',
+  searchLine: '#dbe3e2',
+  arrow: '#667478',
+  demoBadge: '#8a6116',
+  dot: '#b6c2c1',
+  reportLine: '#a4d8d2',
+  reportBg: '#e6f3f1',
+  allProductsLine: '#a4d8d2',
+  inputBg: '#eef3f2',
+  inputLine: '#d8e2e0',
+  slotOnBg: '#c4ebe6',
+  softText: '#3c4a4c',
+  textSofter: '#44514f',
+  chipOnBg: '#d2efeb',
+  zoneOnBg: '#d2efeb',
+  zoneText: '#4c5a5c',
+  productLine: '#e3e9e8',
+  tileBg: '#e9efee',
+  heartBg: '#f6f9f8',
+  rxNote: '#8a6116',
+  disabledBg: '#bac3c2',
+  tabsBorder: '#e0e7e6',
+  tabsBg: '#ffffff',
+  tabIcon: '#7f8d90',
+  tabLabel: '#6a777a',
+  configBg: '#dcf0ec',
+  configText: '#3d5a55',
+  noticeBg: '#fbeecd',
+  noticeText: '#7a5410',
+  emptyTitle: '#223030',
+  nudgeBg: '#d7f2ea',
+  nudgeGlyph: '#0c7d5f',
+  nudgeText: '#0d5c48',
+  qtyBg: '#dee5e4',
+  summaryLabel: '#4a595b',
+  summaryValue: '#223030',
+  green: '#0c8a5f',
+  loginPromptBg: '#d9efec',
+  outlineLine: '#a4d8d2',
+  fieldLabel: '#3c4a4c',
+  chatMineBg: '#c4ebe6',
+  menuBg: '#ffffff',
+  menuBorder: '#dbe3e2',
+  menuSection: '#6a777a',
+  menuItemText: '#223030',
+  menuItemLine: '#e9efee',
+  menuSignoutLine: '#a4d8d2',
+  menuFooter: '#7f8d90',
+  sheetBg: '#ffffff'
+};
+
 type Palette = typeof darkPalette;
-const money = (value = 0) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const cleanProviderName = (value?: string) => String(value ?? '').replace(/\bDEMO ONLY\b/gi, '').replace(/\bDEMO\b/gi, '').replace(/\s{2,}/g, ' ').replace(/\s*[-·]\s*/g, ' ').trim();
+
+const money = (value = 0) => `₹${Number(value || 0)
+  .toLocaleString('en-IN',
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }
+  )}`;
+
+const cleanProviderName = (value?: string) =>
+  String(value ?? '')
+    .replace(/\bDEMO ONLY\b/gi, '')
+    .replace(/\bDEMO\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*[-·]\s*/g, ' ')
+    .trim();
+
 const calendarDays = (month: Date): (Date | null)[] => {
   const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
   const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   return [...Array.from({ length: offset }, () => null), ...Array.from({ length: count }, (_, day) => new Date(month.getFullYear(), month.getMonth(), day + 1))];
 };
+
 const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
 let demoRecordSequence = 1;
 
 const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -141,7 +350,12 @@ export function CustomerApp() {
   const openAreaPicker = () => {
     const currentZone = zones.find((zone) => zone.id === zoneId);
     if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) {
-      setSelectedLocation({ latitude: Number(currentZone.latitude), longitude: Number(currentZone.longitude), address: currentZone.name, city: currentZone.city, pincode: currentZone.pincode });
+      setSelectedLocation({
+        latitude: Number(currentZone.latitude),
+        longitude: Number(currentZone.longitude),
+        address: currentZone.name, city: currentZone.city,
+        pincode: currentZone.pincode
+      });
     }
     setMenuOpen(false);
     setLocationQuery(selectedLocation?.address ?? '');
@@ -156,26 +370,50 @@ export function CustomerApp() {
       zoneId ? apiCall<any>(`/pharmacies?zone_id=${zoneId}`) : Promise.resolve({ data: [] }),
       apiCall<any>('/customers/addresses'),
     ]);
-    setPrescriptions(data.data ?? []); setDoctorConsultations(consultations.data ?? []); setPickupPharmacies(pharmacies.data ?? []);
-    setAddresses(savedAddresses.data ?? []); setPrescriptionPaymentMethods(data.payment_methods ?? []);
-    if (!(data.payment_methods ?? []).some((method: any) => method.id === prescriptionPaymentMethod)) setPrescriptionPaymentMethod((data.payment_methods ?? [])[0]?.id ?? '');
+    setPrescriptions(data.data ?? []);
+    setDoctorConsultations(consultations.data ?? []);
+    setPickupPharmacies(pharmacies.data ?? []);
+    setAddresses(savedAddresses.data ?? []);
+    setPrescriptionPaymentMethods(data.payment_methods ?? []);
+    if (!(data.payment_methods ?? []).some((method: any) => method.id === prescriptionPaymentMethod))
+      setPrescriptionPaymentMethod((data.payment_methods ?? [])[0]?.id ?? '');
   };
 
   const acceptPrescriptionQuote = async (request: any) => {
     const quoteId = Number(request.quote?.id ?? request.quote_id ?? 0);
-    if (!quoteId) { setNotice('The pharmacy quote is no longer available. Refresh and try again.'); return; }
+    if (!quoteId) {
+      setNotice('The pharmacy quote is no longer available. Refresh and try again.'); return;
+    }
     setBusy(true);
     try {
-      await apiCall(`/prescription-requests/${request.id}/accept-quote`, { method: 'POST', body: { quote_id: quoteId } });
-      await loadPrescriptionCentre(); setNotice('Quote accepted. Review the delivery address and place your medicine order.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not accept this quote.'); }
-    finally { setBusy(false); }
+      await apiCall(`/prescription-requests/${request.id}/accept-quote`,
+        {
+          method: 'POST',
+          body: {
+            quote_id: quoteId
+          }
+        }
+      );
+      await loadPrescriptionCentre();
+      setNotice('Quote accepted. Review the delivery address and place your medicine order.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not accept this quote.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const checkoutPrescriptionQuote = async (request: any) => {
     const savedAddress = addresses.find((item) => Number(item.is_default) === 1) ?? addresses[0];
-    if (!savedAddress && !addressText.trim()) { setNotice('Add a delivery address before placing this medicine order.'); go('Delivery addresses'); return; }
-    if (!prescriptionPaymentMethod) { setNotice('No payment method is currently enabled. Contact the website administrator.'); return; }
+    if (!savedAddress && !addressText.trim()) {
+      setNotice('Add a delivery address before placing this medicine order.');
+      go('Delivery addresses');
+      return;
+    }
+    if (!prescriptionPaymentMethod) {
+      setNotice('No payment method is currently enabled. Contact the website administrator.');
+      return;
+    }
     setBusy(true);
     try {
       const result = await apiCall<any>(`/prescription-requests/${request.id}/checkout`, {
@@ -197,7 +435,13 @@ export function CustomerApp() {
       setCart([...(response.data ?? []), ...localItems]);
       if (response.summary) {
         const localSubtotal = localItems.reduce((total, item) => total + item.price * item.quantity, 0);
-        setSummary({ ...response.summary, subtotal: response.summary.subtotal + localSubtotal, total: response.summary.total + localSubtotal, items_count: response.summary.items_count + localItems.reduce((total, item) => total + item.quantity, 0) });
+        setSummary({
+          ...response.summary,
+          subtotal: response.summary.subtotal + localSubtotal,
+          total: response.summary.total + localSubtotal,
+          items_count: response.summary.items_count + localItems.reduce((total, item) => total + item.quantity,
+            0)
+        });
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to load your cart.');
@@ -295,49 +539,90 @@ export function CustomerApp() {
         const activeZones: Zone[] = (zoneResponse.data?.length ? zoneResponse.data : settings.zones ?? []).map((zone: Zone) => ({ ...zone, id: Number(zone.id) }));
         const serviceZones: Zone[] = activeZones;
         setZones(serviceZones);
-        if (savedArea?.location) setSelectedLocation(savedArea.location);
+        if (savedArea?.location)
+          setSelectedLocation(savedArea.location);
         setCategories((cats.data ?? []).map((category) => ({ ...category, id: Number(category.id) })));
         const savedZone = serviceZones.find((zone) => zone.id === Number(savedArea?.zone_id));
         const initialZone = savedZone?.id ?? serviceZones[0]?.id ?? null;
         setZoneId(initialZone);
         if (initialZone === null) {
-          setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
-          setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
-          setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]); setZoneId(-1);
+          setCategories(DEMO_CATEGORIES as unknown as Category[]);
+          setProducts(DEMO_PRODUCTS as unknown as Product[]);
+          setBanners(DEMO_BANNERS);
+          setDoctors(DEMO_DOCTORS);
+          setLabs(DEMO_LABS);
+          setZones([{
+            id: -1,
+            name: 'Central - Prayagraj',
+            city: 'Prayagraj',
+            state: 'Uttar Pradesh',
+            pincode: '211001',
+            latitude: 25.4358,
+            longitude: 81.8463
+          }]);
+          setZoneId(-1);
         }
         if (initialZone !== null) await loadCatalog(initialZone, null, '');
         const signedIn = await hasLoginToken();
         if (signedIn) {
           try {
             const me = await apiCall<{ data: Profile }>('/customers/profile');
-            if (active) { setProfile(me.data); setCustomerName(me.data.name ?? ''); setCustomerPhone(me.data.phone ?? ''); }
-          } catch { if (active) setProfile(null); }
+            if (active) {
+              setProfile(me.data); setCustomerName(me.data.name ?? '');
+              setCustomerPhone(me.data.phone ?? '');
+            }
+          } catch {
+            if (active)
+              setProfile(null);
+          }
         }
         await loadCart();
       } catch (error) {
-      if (active) {
-        setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]); setBanners(DEMO_BANNERS);
-        setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
-        setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]); setZoneId(-1);
-        setConfigMessage('');
-
-      }
+        if (active) {
+          setCategories(DEMO_CATEGORIES as unknown as Category[]);
+          setProducts(DEMO_PRODUCTS as unknown as Product[]);
+          setBanners(DEMO_BANNERS);
+          setDoctors(DEMO_DOCTORS);
+          setLabs(DEMO_LABS);
+          setZones([{
+            id: -1,
+            name: 'Central - Prayagraj',
+            city: 'Prayagraj',
+            state: 'Uttar Pradesh',
+            pincode: '211001',
+            latitude: 25.4358,
+            longitude: 81.8463
+          }]);
+          setZoneId(-1);
+          setConfigMessage('');
+        }
       } finally {
         if (active) setBusy(false);
       }
     };
+
     void start();
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    void readAppearanceSetting().then((saved) => { if (saved) setAppearance(saved); }).catch(() => undefined);
+    void readAppearanceSetting()
+      .then((saved) => {
+        if (saved)
+          setAppearance(saved);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      void loadCatalog(zoneId ?? -1, categoryId, query, selectedSubcategoryId);
+      void loadCatalog(
+        zoneId ?? -1,
+        categoryId,
+        query,
+        selectedSubcategoryId
+      );
     }, 150);
     return () => clearTimeout(timer);
   }, [zoneId, categoryId, selectedSubcategoryId, query, refreshKey, loadCatalog]);
@@ -347,28 +632,73 @@ export function CustomerApp() {
     if (!hasBackendUrl()) return;
     try {
       if (next === 'Medical Orders') {
-        const [o, l, d] = await Promise.all([apiCall<any>('/orders'), apiCall<any>('/lab-bookings'), apiCall<any>('/consultations')]);
-        setOrders([...(o.data ?? []), ...(l.data ?? []).map((x: any) => ({ ...x, order_number: x.test_name, order_status: x.status, order_amount: x.amount, type: 'Lab test' })), ...(d.data ?? []).map((x: any) => ({ ...x, order_number: x.doctor_name, order_status: x.status, order_amount: x.amount, type: 'Consultation' }))]);
+        const [o, l, d] = await Promise.all([apiCall<any>('/orders'),
+        apiCall<any>('/lab-bookings'),
+        apiCall<any>('/consultations')]);
+        setOrders([...(o.data ?? []),
+        ...(l.data ?? []).map((x: any) => ({
+          ...x,
+          order_number: x.test_name,
+          order_status: x.status,
+          order_amount: x.amount,
+          type: 'Lab test'
+        })),
+        ...(d.data ?? []).map((x: any) => ({
+          ...x,
+          order_number: x.doctor_name,
+          order_status: x.status,
+          order_amount: x.amount,
+          type: 'Consultation'
+        })
+        )]);
       } else if (next === 'Health log') {
-        const [labs, visits] = await Promise.all([apiCall<any>('/lab-bookings'), apiCall<any>('/consultations')]);
-        setHealthRecords([...(labs.data ?? []).map((item: any) => ({ ...item, record_type: 'Lab test', record_name: item.test_name || item.name || 'Lab test' })), ...(visits.data ?? []).map((item: any) => ({ ...item, record_type: 'Consultation', record_name: item.doctor_name ? 'Dr. ' + item.doctor_name : 'Doctor consultation' }))].sort((a: any, b: any) => String(b.scheduled_at || b.created_at || '').localeCompare(String(a.scheduled_at || a.created_at || ''))));
+        const [labs, visits] = await Promise.all([apiCall<any>('/lab-bookings'),
+        apiCall<any>('/consultations')]);
+        setHealthRecords([...(labs.data ?? [])
+          .map((item: any) => ({
+            ...item,
+            record_type: 'Lab test',
+            record_name: item.test_name || item.name || 'Lab test'
+          })),
+        ...(visits.data ?? []).map((item: any) => ({
+          ...item,
+          record_type: 'Consultation',
+          record_name: item.doctor_name ? 'Dr. ' + item.doctor_name : 'Doctor consultation'
+        })
+        )].sort((a: any, b: any) => String(b.scheduled_at || b.created_at || '')
+          .localeCompare(String(a.scheduled_at || a.created_at || ''))
+        ));
       } else if (next === 'Delivery addresses') {
-        const data = await apiCall<any>('/customers/addresses'); setAddresses(data.data ?? []);
+        const data = await apiCall<any>('/customers/addresses');
+        setAddresses(data.data ?? []);
       } else if (next === 'Notifications') {
-        const data = await apiCall<any>('/notifications'); setNotifications(data.data ?? []);
+        const data = await apiCall<any>('/notifications');
+        setNotifications(data.data ?? []);
       } else if (next === 'Saved products') {
-        const data = await apiCall<any>('/wishlist'); setWishlist(data.data ?? []);
+        const data = await apiCall<any>('/wishlist');
+        setWishlist(data.data ?? []);
       } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
-        if (!zoneId || zoneId < 0) { setLabs(DEMO_LABS); setDoctors(DEMO_DOCTORS); }
+        if (!zoneId || zoneId < 0) {
+          setLabs(DEMO_LABS);
+          setDoctors(DEMO_DOCTORS);
+        }
         else {
           const data = await apiCall<any>(`/services?zone_id=${zoneId}`);
           setLabs(data.lab_tests?.length ? data.lab_tests : DEMO_LABS);
           setDoctors(data.doctors?.length ? data.doctors : DEMO_DOCTORS);
         }
       } else if (next === 'Refunds') {
-        const data = await apiCall<any>('/refunds'); setOrders(data.data ?? []);
+        const data = await apiCall<any>('/refunds');
+        setOrders(data.data ?? []);
       } else if (next === 'Wallet') {
-        const data = await apiCall<any>('/customers/wallet'); setConfig((old: any) => ({ ...old, wallet: { ...(data.data ?? {}), ledger: data.ledger ?? [], withdrawals: data.withdrawals ?? [] } }));
+        const data = await apiCall<any>('/customers/wallet');
+        setConfig((old: any) => ({
+          ...old, wallet: {
+            ...(data.data ?? {}),
+            ledger: data.ledger ?? [],
+            withdrawals: data.withdrawals ?? []
+          }
+        }));
       } else if (next === 'Prescription Centre') {
         await loadPrescriptionCentre();
       }
@@ -378,47 +708,119 @@ export function CustomerApp() {
   };
 
   const searchLocations = async () => {
-    if (locationQuery.trim().length < 3) { setLocationNotice('Type at least 3 characters of an address, area, or PIN code.'); return; }
-    setLocationBusy(true); setLocationNotice('');
+    if (locationQuery.trim().length < 3) {
+      setLocationNotice('Type at least 3 characters of an address, area, or PIN code.');
+      return;
+    }
+    setLocationBusy(true);
+    setLocationNotice('');
     try {
-      const result = await apiCall<{ data?: LocationChoice[] }>('/api/v1/zones/search', { method: 'POST', body: { query: locationQuery.trim() } });
+      const result = await apiCall<{ data?: LocationChoice[] }>('/api/v1/zones/search', {
+        method: 'POST',
+        body: {
+          query: locationQuery.trim()
+        }
+      });
       setLocationChoices(result.data ?? []);
-      if (!result.data?.length) setLocationNotice('No matching addresses found. Try a nearby landmark or PIN code.');
-    } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not search for that address.'); }
-    finally { setLocationBusy(false); }
+      if (!result.data?.length)
+        setLocationNotice('No matching addresses found. Try a nearby landmark or PIN code.');
+    } catch (error) {
+      setLocationNotice(error instanceof Error ? error.message : 'Could not search for that address.');
+    }
+    finally {
+      setLocationBusy(false);
+    }
   };
 
   const selectMapPin = (pin: MapPin) => {
-    const choice = { ...pin, address: `${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}` };
-    setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Pin selected. Add or search an address, then use this location.');
+    const choice = {
+      ...pin,
+      address: `${pin.latitude.toFixed(5)},
+         ${pin.longitude.toFixed(5)}`
+    };
+    setSelectedLocation(choice);
+    setLocationQuery(choice.address);
+    setLocationNotice('Pin selected. Add or search an address, then use this location.');
   };
 
   const applySelectedLocation = async () => {
-    if (!selectedLocation) { setLocationNotice('Search for an address or tap the map to place a pin first.'); return; }
-    setLocationBusy(true); setLocationNotice('Checking delivery coverage…');
+    if (!selectedLocation) {
+      setLocationNotice('Search for an address or tap the map to place a pin first.');
+      return;
+    }
+    setLocationBusy(true);
+    setLocationNotice('Checking delivery coverage…');
     try {
       let details: LocationChoice = selectedLocation;
       try {
-        const reverse = await apiCall<{ data?: { address?: string; pincode?: string; city?: string } }>('/api/v1/zones/reverse-geocode', { method: 'POST', body: { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude } });
-        details = { ...selectedLocation, ...reverse.data, address: reverse.data?.address || selectedLocation.address };
+        const reverse = await apiCall<{
+          data?: {
+            address?: string;
+            pincode?: string;
+            city?: string
+          }
+        }>('/api/v1/zones/reverse-geocode', {
+          method: 'POST',
+          body: {
+            latitude: selectedLocation.latitude,
+            longitude: selectedLocation.longitude
+          }
+        });
+        details = {
+          ...selectedLocation,
+          ...reverse.data,
+          address: reverse.data?.address || selectedLocation.address
+        };
       } catch { /* Keep the manually entered or map-pin address if reverse lookup is unavailable. */ }
-      const resolution = await apiCall<{ data?: { zone?: Zone | null; serviceable?: boolean } }>('/api/v1/zones/resolve', { method: 'POST', body: { latitude: details.latitude, longitude: details.longitude, pincode: details.pincode, city: details.city } });
-      setSelectedLocation(details); setLocationQuery(details.address); setLocationChoices([]); setNotice('');
+      const resolution = await apiCall<{
+        data?: {
+          zone?: Zone | null;
+          serviceable?: boolean
+        }
+      }>('/api/v1/zones/resolve',
+        {
+          method: 'POST',
+          body: {
+            latitude: details.latitude,
+            longitude: details.longitude,
+            pincode: details.pincode,
+            city: details.city
+          }
+        });
+      setSelectedLocation(details);
+      setLocationQuery(details.address);
+      setLocationChoices([]);
+      setNotice('');
       if (resolution.data?.zone) {
-        const zone = { ...resolution.data.zone, id: Number(resolution.data.zone.id) };
+        const zone = {
+          ...resolution.data.zone,
+          id: Number(resolution.data.zone.id)
+        };
         setZones((current) => current.some((item) => item.id === zone.id) ? current : [...current, zone]);
-        void saveCustomerArea({ zone_id: zone.id, location: details }).catch(() => undefined);
-        setZoneId(zone.id); setRefreshKey((value) => value + 1); setAreaPickerOpen(false); setLocationNotice('');
+        void saveCustomerArea({
+          zone_id: zone.id,
+          location: details
+        }).catch(() => undefined);
+        setZoneId(zone.id);
+        setRefreshKey((value) => value + 1);
+        setAreaPickerOpen(false);
+        setLocationNotice('');
       } else {
         setLocationNotice('This location is outside current delivery coverage. The admin must enable this area before orders can be placed.');
       }
-    } catch (error) { setLocationNotice(error instanceof Error ? error.message : 'Could not check delivery coverage.'); }
-    finally { setLocationBusy(false); }
+    } catch (error) {
+      setLocationNotice(error instanceof Error ? error.message : 'Could not check delivery coverage.');
+    }
+    finally {
+      setLocationBusy(false);
+    }
   };
 
   useEffect(() => {
     if (!profile || page !== 'Prescription Centre') return;
-    const timer = setInterval(() => { void loadPrescriptionCentre().catch(() => undefined); }, 15000);
+    const timer = setInterval(() => {
+      void loadPrescriptionCentre().catch(() => undefined);
+    }, 15000);
     return () => clearInterval(timer);
   }, [profile?.id, page, zoneId]);
 
@@ -427,22 +829,46 @@ export function CustomerApp() {
     try {
       if (product.id < 0 || zoneId < 0) {
         const existing = demoCart.find((item) => item.product_id === product.id);
-        const nextDemoCart = existing ? demoCart.map((item) => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...demoCart, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
+        const nextDemoCart = existing ? demoCart.map((item) =>
+          item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...demoCart, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
         const nextCart = [...cart.filter((item) => item.product_id >= 0), ...nextDemoCart];
-        setDemoCart(nextDemoCart); setCart(nextCart);
+        setDemoCart(nextDemoCart);
+        setCart(nextCart);
         const subtotal = nextCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: nextCart.reduce((sum, item) => sum + item.quantity, 0) });
-        setNotice(`${product.name} added to cart.`); return;
+        setSummary({
+          subtotal, medicine_discount: 0,
+          coupon_discount: 0,
+          total_discount: 0,
+          tax_total: 0,
+          delivery_charge: 0,
+          platform_fee: 0,
+          extra_discount_threshold: 0,
+          total: subtotal,
+          items_count: nextCart.reduce((sum, item) => sum + item.quantity, 0)
+        });
+        setNotice(`${product.name} added to cart.`);
+        return;
       }
-      await apiCall('/cart/add', { method: 'POST', body: { product_id: product.id, quantity: 1, zone_id: zoneId } });
-      setNotice(`${product.name} added to cart.`); await loadCart();
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not add this medicine.'); }
+      await apiCall('/cart/add', {
+        method: 'POST',
+        body: {
+          product_id: product.id,
+          quantity: 1,
+          zone_id: zoneId
+        }
+      });
+      setNotice(`${product.name} added to cart.`);
+      await loadCart();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not add this medicine.');
+    }
   };
 
   const openProduct = async (product: Product) => {
     setSelectedProduct(product);
     go('Product details');
-    if (product.id < 0 || !hasBackendUrl()) return;
+    if (product.id < 0 || !hasBackendUrl())
+      return;
     try {
       const result = await apiCall<{ data?: Product }>(`/products/${product.id}${zoneId ? `?zone_id=${zoneId}` : ''}`);
       if (result.data) setSelectedProduct(result.data);
@@ -456,52 +882,167 @@ export function CustomerApp() {
       if (item.product_id < 0 || item.id < 0 || zoneId === -1) {
         const nextCart = quantity < 1 ? cart.filter((entry) => entry.id !== item.id) : cart.map((entry) => entry.id === item.id ? { ...entry, quantity } : entry);
         const nextDemoCart = nextCart.filter((entry) => entry.product_id < 0);
-        setDemoCart(nextDemoCart); setCart(nextCart);
+        setDemoCart(nextDemoCart);
+        setCart(nextCart);
         const subtotal = nextCart.reduce((sum, entry) => sum + entry.price * entry.quantity, 0);
-        setSummary({ subtotal, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: subtotal, items_count: nextCart.reduce((sum, entry) => sum + entry.quantity, 0) }); return;
+        setSummary({
+          subtotal,
+          medicine_discount: 0,
+          coupon_discount: 0,
+          total_discount: 0,
+          tax_total: 0,
+          delivery_charge: 0,
+          platform_fee: 0,
+          extra_discount_threshold: 0,
+          total: subtotal,
+          items_count: nextCart.reduce((sum, entry) => sum + entry.quantity, 0)
+        });
+        return;
       }
-      if (quantity < 1) await apiCall(`/cart/remove?cart_id=${item.id}`, { method: 'DELETE' });
-      else await apiCall('/cart/update', { method: 'PUT', body: { cart_id: item.id, quantity } });
+      if (quantity < 1)
+        await apiCall(`/cart/remove?cart_id=${item.id}`,
+          {
+            method: 'DELETE'
+          }
+        );
+      else
+        await apiCall('/cart/update',
+          {
+            method: 'PUT',
+            body: {
+              cart_id: item.id,
+              quantity
+            }
+          }
+        );
       await loadCart();
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not update the cart.'); }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not update the cart.');
+    }
   };
 
   const submitAuth = async () => {
-    if (!authPhone.trim() || !authPassword) { setNotice('Enter your phone number and password.'); return; }
-    if (authMode === 'register' && !authName.trim()) { setNotice('Enter your name to create an account.'); return; }
+    if (!authPhone.trim() || !authPassword) {
+      setNotice('Enter your phone number and password.');
+      return;
+    }
+    if (authMode === 'register' && !authName.trim()) {
+      setNotice('Enter your name to create an account.');
+      return;
+    }
     setBusy(true);
     try {
-      const payload = await apiCall<any>(`/customers/${authMode}`, { method: 'POST', body: { name: authName, phone: authPhone, email: authEmail, password: authPassword } });
+      const payload = await apiCall<any>(`/customers/${authMode}`,
+        {
+          method: 'POST',
+          body: {
+            name: authName,
+            phone: authPhone,
+            email: authEmail,
+            password: authPassword
+          }
+        }
+      );
       await saveLoginToken(payload.token);
-      setProfile(payload.data); setCustomerName(payload.data?.name ?? authName); setCustomerPhone(payload.data?.phone ?? authPhone);
-      setAuthPassword(''); setNotice(payload.message ?? 'Signed in successfully.'); setPage('My Account'); setHistory([]); await loadCart();
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Sign in failed.'); }
-    finally { setBusy(false); }
+      setProfile(payload.data);
+      setCustomerName(payload.data?.name ?? authName);
+      setCustomerPhone(payload.data?.phone ?? authPhone);
+      setAuthPassword('');
+      setNotice(payload.message ?? 'Signed in successfully.');
+      setPage('My Account');
+      setHistory([]);
+      await loadCart();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Sign in failed.');
+    }
+    finally {
+      setBusy(false);
+    }
   };
 
   const saveAddress = async () => {
-    if (!addressText.trim()) { setNotice('Enter your full delivery address.'); return; }
+    if (!addressText.trim()) {
+      setNotice('Enter your full delivery address.');
+      return;
+    }
     if (zoneId === -1) {
-      const address = { id: -1, label: 'Home', address: addressText.trim(), city: 'Mumbai', pincode: '400001', is_default: true };
-      setAddresses((items) => [address, ...items.filter((item) => !item.is_default)]);
-      setAddressText(''); setNotice('Delivery address saved.'); return;
+      const address = {
+        id: -1,
+        label: 'Home',
+        address: addressText.trim(),
+        city: 'Mumbai',
+        pincode: '400001',
+        is_default: true
+      };
+      setAddresses((items) => [
+        address,
+        ...items.filter((item) => !item.is_default)
+      ]);
+      setAddressText('');
+      setNotice('Delivery address saved.');
+      return;
     }
     try {
-      const payload = await apiCall<any>('/customers/addresses', { method: 'POST', body: { label: 'Home', address: addressText, contact_name: profile?.name ?? customerName, contact_phone: profile?.phone ?? customerPhone, is_default: true } });
-      setAddresses(payload.data ?? []); setAddressText(''); setNotice('Delivery address saved.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Address could not be saved.'); }
+      const payload = await apiCall<any>('/customers/addresses', {
+        method: 'POST',
+        body: {
+          label: 'Home',
+          address: addressText,
+          contact_name: profile?.name ?? customerName,
+          contact_phone: profile?.phone ?? customerPhone,
+          is_default: true
+        }
+      });
+      setAddresses(payload.data ?? []);
+      setAddressText('');
+      setNotice('Delivery address saved.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Address could not be saved.');
+    }
   };
 
   const placeOrder = async () => {
-    if (!zoneId) { setNotice('Choose your service area before checkout.'); return; }
+    if (!zoneId) {
+      setNotice('Choose your service area before checkout.');
+      return;
+    }
     if (zoneId < 0 || cart.some((item) => item.product_id < 0)) {
       const number = `AMX-${String(demoRecordSequence++).padStart(6, '0')}`;
-      setOrders((items) => [{ id: number, order_number: number, order_status: 'confirmed', order_amount: summary.total, type: 'Medicine order', created_at: 'Just now', delivery_type: deliveryType, delivery_slot: deliverySlot }, ...items]);
-      setCart([]); setSummary({ subtotal: 0, medicine_discount: 0, coupon_discount: 0, total_discount: 0, tax_total: 0, delivery_charge: 0, platform_fee: 0, extra_discount_threshold: 0, total: 0, items_count: 0 });
+      setOrders((items) => [{
+        id: number,
+        order_number: number,
+        order_status: 'confirmed'
+        , order_amount: summary.total,
+        type: 'Medicine order',
+        created_at: 'Just now',
+        delivery_type: deliveryType,
+        delivery_slot: deliverySlot
+      },
+      ...items]);
+      setCart([]);
+      setSummary({
+        subtotal: 0,
+        medicine_discount: 0,
+        coupon_discount: 0,
+        total_discount: 0,
+        tax_total: 0,
+        delivery_charge: 0,
+        platform_fee: 0,
+        extra_discount_threshold: 0,
+        total: 0,
+        items_count: 0
+      });
       setDemoCart([]);
-      setNotice(`Order ${number} placed successfully.`); setPage('Medical Orders'); setHistory([]); return;
+      setNotice(`Order ${number} placed successfully.`);
+      setPage('Medical Orders');
+      setHistory([]);
+      return;
     }
-    if (!addressText.trim() && !addresses.length) { setNotice('Add a delivery address before checkout.'); go('Delivery addresses'); return; }
+    if (!addressText.trim() && !addresses.length) {
+      setNotice('Add a delivery address before checkout.');
+      go('Delivery addresses');
+      return;
+    }
     setBusy(true);
     try {
       const payload = await apiCall<any>('/orders/place', {
@@ -517,86 +1058,275 @@ export function CustomerApp() {
           delivery_slot: deliverySlot,
         }
       });
-      setNotice(payload.message ?? 'Your order has been placed.'); setPage('Medical Orders'); setHistory([]); await loadCart();
-      const data = await apiCall<any>('/orders'); setOrders(data.data ?? []);
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Checkout could not be completed.'); }
-    finally { setBusy(false); }
+      setNotice(payload.message ?? 'Your order has been placed.');
+      setPage('Medical Orders');
+      setHistory([]);
+      await loadCart();
+      const data = await apiCall<any>('/orders');
+      setOrders(data.data ?? []);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Checkout could not be completed.');
+    }
+    finally {
+      setBusy(false);
+    }
   };
 
   const saveProfile = async () => {
     try {
-      const result = await apiCall<any>('/customers/profile', { method: 'POST', body: { name: customerName, email: authEmail || profile?.email || '' } });
-      setProfile(result.data); setNotice(result.message ?? 'Profile updated.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Profile update failed.'); }
+      const result = await apiCall<any>('/customers/profile',
+        {
+          method: 'POST',
+          body: {
+            name: customerName,
+            email: authEmail || profile?.email || ''
+          }
+        });
+      setProfile(result.data);
+      setNotice(result.message ?? 'Profile updated.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Profile update failed.');
+    }
   };
 
   const toggleWishlist = async (product: Product) => {
     if (product.id < 0 || zoneId === -1) {
-      setWishlist((items) => items.some((item) => item.product_id === product.id) ? items.filter((item) => item.product_id !== product.id) : [...items, { id: product.id, product_id: product.id, name: product.name, price: product.price, discount_price: product.discount_price }]);
-      setNotice('Saved products updated.'); return;
+      setWishlist((items) => items.some((item) => item.product_id === product.id) ?
+        items.filter((item) => item.product_id !== product.id) : [...items, {
+          id: product.id,
+          product_id: product.id,
+          name: product.name,
+          price: product.price,
+          discount_price: product.discount_price
+        }]);
+      setNotice('Saved products updated.');
+      return;
     }
-    try { await apiCall('/wishlist/toggle', { method: 'POST', body: { product_id: product.id } }); const result = await apiCall<any>('/wishlist'); setWishlist(result.data ?? []); setNotice('Wishlist updated.'); }
-    catch (error) { setNotice(error instanceof Error ? error.message : 'Wishlist could not be updated.'); }
+    try {
+      await apiCall('/wishlist/toggle', {
+        method: 'POST',
+        body: {
+          product_id: product.id
+        }
+      });
+      const result = await apiCall<any>('/wishlist');
+      setWishlist(result.data ?? []);
+      setNotice('Wishlist updated.');
+    }
+    catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Wishlist could not be updated.');
+    }
   };
 
   const submitBooking = async () => {
     if (!appointment) return;
-    if (!bookingTime.trim()) { setNotice('Choose a date and time from the calendar.'); return; }
+    if (!bookingTime.trim()) {
+      setNotice('Choose a date and time from the calendar.');
+      return;
+    }
     if (zoneId === -1 || appointment.id < 0) {
       const provider = (appointment.kind === 'doctor' ? DEMO_DOCTORS : DEMO_LABS).find((item) => item.id === appointment.id);
       const name = provider ? ('name' in provider ? provider.name : '') : '';
       const recordId = `AMX-${String(demoRecordSequence++).padStart(6, '0')}`;
-      setOrders((items) => [{ id: recordId, order_number: `${name}`, order_status: 'requested', order_amount: appointment.kind === 'doctor' ? DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Consultation' : 'Lab test', scheduled_at: bookingTime || 'Preferred time to be confirmed' }, ...items]);
-      setAppointment(null); setBookingTime(''); setNotice('Your booking request has been received.'); setPage('Medical Orders'); setHistory([]); return;
+      setOrders((items) =>
+        [{
+          id: recordId,
+          order_number: `${name}`,
+          order_status: 'requested',
+          order_amount: appointment.kind === 'doctor' ?
+            DEMO_DOCTORS.find((item) => item.id === appointment.id)?.consultation_fee : DEMO_LABS.find((item) => item.id === appointment.id)?.price, type: appointment.kind === 'doctor' ? 'Consultation' : 'Lab test',
+          scheduled_at: bookingTime || 'Preferred time to be confirmed'
+        },
+        ...items
+        ]);
+      setAppointment(null);
+      setBookingTime('');
+      setNotice('Your booking request has been received.');
+      setPage('Medical Orders');
+      setHistory([]);
+      return;
     }
-    if (!profile && (!customerName.trim() || !customerPhone.trim())) { setNotice('Enter your name and phone number for the booking.'); return; }
+    if (!profile && (!customerName.trim() || !customerPhone.trim())) {
+      setNotice('Enter your name and phone number for the booking.');
+      return;
+    }
     const lab = appointment.kind === 'lab';
     try {
       await apiCall(lab ? '/lab-bookings' : '/consultations', {
         method: 'POST', body: {
-          zone_id: zoneId, customer_name: profile?.name ?? customerName.trim(), customer_phone: profile?.phone ?? customerPhone.trim(), scheduled_at: bookingTime,
-          ...(lab ? { test_id: appointment.id, collection_mode: 'home' } : { doctor_id: appointment.id, consultation_mode: consultationMode, reason: consultationReason.trim() }),
+          zone_id: zoneId,
+          customer_name: profile?.name ?? customerName.trim(),
+          customer_phone: profile?.phone ?? customerPhone.trim(),
+          scheduled_at: bookingTime,
+          ...(lab ? {
+            test_id: appointment.id,
+            collection_mode: 'home'
+          } : {
+            doctor_id: appointment.id,
+            consultation_mode: consultationMode,
+            reason: consultationReason.trim()
+          }),
           payment_method: 'cash_on_service',
         }
       });
-      setAppointment(null); setBookingTime(''); setConsultationMode('online'); setConsultationReason(''); setNotice('Your booking request has been sent.'); setPage('Medical Orders'); setHistory([]); await openPage('Medical Orders');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Booking request could not be sent.'); }
+      setAppointment(null);
+      setBookingTime('');
+      setConsultationMode('online');
+      setConsultationReason('');
+      setNotice('Your booking request has been sent.');
+      setPage('Medical Orders');
+      setHistory([]);
+      await openPage('Medical Orders');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Booking request could not be sent.');
+    }
   };
 
   const openDoctorChat = async (consultation: any) => {
     try {
-      const result = await apiCall<any>('/chat', { method: 'POST', body: { entity_type: 'consultation', entity_id: Number(consultation.id) } });
+      const result = await apiCall<any>('/chat', {
+        method: 'POST',
+        body: {
+          entity_type: 'consultation',
+          entity_id: Number(consultation.id)
+        }
+      });
       const id = Number(result.data?.id ?? result.conversation?.id);
-      if (!id) throw new Error('Chat is not available for this appointment yet.');
+      if (!id)
+        throw new Error('Chat is not available for this appointment yet.');
       const thread = await apiCall<any>(`/chat/${id}/show`);
-      setChatId(id); setChatMessages(thread.messages ?? []); setChatOpen(true);
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not open the doctor chat.'); }
+      setChatId(id);
+      setChatMessages(thread.messages ?? []);
+      setChatOpen(true);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not open the doctor chat.');
+    }
   };
 
   const sendDoctorChat = async () => {
     if (!chatId || !chatDraft.trim()) return;
     try {
-      const result = await apiCall<any>(`/chat/${chatId}/send`, { method: 'POST', body: { text: chatDraft.trim() } });
-      setChatMessages(result.messages ?? []); setChatDraft('');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Message could not be sent.'); }
+      const result = await apiCall<any>(`/chat/${chatId}/send`, {
+        method: 'POST',
+        body: {
+          text: chatDraft.trim()
+        }
+      });
+      setChatMessages(result.messages ?? []);
+      setChatDraft('');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Message could not be sent.');
+    }
   };
 
   useEffect(() => {
     if (!chatOpen || !chatId) return;
-    void api(`/chat/${chatId}/read`, { method: 'POST' }).catch(() => undefined);
+    void api(`/chat/${chatId}/read`,
+      {
+        method: 'POST'
+      }).catch(() => undefined);
     const timer = setInterval(() => {
       const lastId = chatMessages.at(-1)?.id ?? 0;
-      void api<any>(`/chat/${chatId}/show?after_id=${lastId}`).then((result) => {
-        if (result.messages?.length) setChatMessages((messages) => [...messages, ...result.messages]);
-      }).catch(() => undefined);
+      void api<any>(`/chat/${chatId}/show?after_id=${lastId}`)
+        .then((result) => {
+          if (result.messages?.length)
+            setChatMessages((messages) => [
+              ...messages,
+              ...result.messages
+            ]);
+        }).catch(() => undefined);
     }, 5000);
     return () => clearInterval(timer);
   }, [chatOpen, chatId, chatMessages]);
 
   const consultationReportHtml = (visit: any) => {
-    const escape = (value: unknown) => String(value ?? '').replace(/[&<>\"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[character]!));
+    const escape = (value: unknown) => String(value ?? '')
+      .replace(/[&<>\"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '\"': '&quot;',
+        "'": '&#39;'
+      }[character]!
+      ));
     const medicines = Array.isArray(visit.prescription_items) ? visit.prescription_items : [];
-    return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font:14px Arial,sans-serif;color:#172324;margin:36px}h1{color:#087f78;font-size:22px}h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #d7e1df;padding-bottom:6px}.meta{line-height:1.8;color:#405252}.note{white-space:pre-wrap;line-height:1.6}.medicine{padding:8px 0;border-bottom:1px solid #e5ecea}.footer{margin-top:28px;color:#637170;font-size:11px}</style></head><body><h1>Amedix · Consultation report</h1><div class="meta"><b>Patient:</b> ${escape(visit.customer_name || profile?.name)}<br><b>Doctor:</b> Dr. ${escape(visit.doctor_name)}<br><b>Appointment:</b> ${escape(visit.scheduled_at)}<br><b>Mode:</b> ${visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'}<br><b>Status:</b> ${escape(String(visit.status || '').replaceAll('_', ' '))}<br><b>Consultation ID:</b> ${escape(visit.id)}</div><h2>Doctor's notes</h2><div class="note">${escape(visit.clinical_note || 'No consultation note was added.')}</div><h2>Prescription</h2>${medicines.length ? medicines.map((item: any) => `<div class="medicine"><b>${escape(item.name)}</b>${item.strength ? ` · ${escape(item.strength)}` : ''}<br>${[item.dosage, item.frequency, item.duration, item.instructions].filter(Boolean).map(escape).join(' · ')}</div>`).join('') : '<div class="note">No medicines prescribed.</div>'}<div class="note">${escape(visit.prescription_note || '')}</div><p class="footer">This report contains information saved by your doctor. Follow your doctor's advice for care.</p></body></html>`;
+    return `
+    <!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font: 14px Arial, sans-serif;
+      color: #172324;
+      margin: 36px;
+    }
+    h1 {
+      color: #087f78;
+      font-size: 22px;
+    }
+    h2 {
+      font-size: 15px;
+      margin: 22px 0 8px;
+      border-bottom: 1px solid #d7e1df;
+      padding-bottom: 6px;
+    }
+    .meta {
+      line-height: 1.8;
+      color: #405252;
+    }
+    .note {
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .medicine {
+      padding: 8px 0;
+      border-bottom: 1px solid #e5ecea;
+    }
+    .footer {
+      margin-top: 28px;
+      color: #637170;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Amedix · Consultation report</h1>
+
+  <div class="meta">
+    <b>Patient:</b> ${escape(visit.customer_name || profile?.name)}<br>
+    <b>Doctor:</b> Dr. ${escape(visit.doctor_name)}<br>
+    <b>Appointment:</b> ${escape(visit.scheduled_at)}<br>
+    <b>Mode:</b> ${visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'}<br>
+    <b>Status:</b> ${escape(String(visit.status || '').replaceAll('_', ' '))}<br>
+    <b>Consultation ID:</b> ${escape(visit.id)}
+  </div>
+
+  <h2>Doctor's notes</h2>
+  <div class="note">
+    ${escape(visit.clinical_note || 'No consultation note was added.')}
+  </div>
+
+  <h2>Prescription</h2>
+  ${medicines.length
+        ? medicines.map((item: any) => `
+      <div class="medicine">
+        <b>${escape(item.name)}</b>${item.strength ? ` · ${escape(item.strength)}` : ''}<br>
+        ${[item.dosage, item.frequency, item.duration, item.instructions]
+            .filter(Boolean)
+            .map(escape)
+            .join(' · ')}
+      </div>`).join('')
+        : '<div class="note">No medicines prescribed.</div>'}
+
+  <div class="note">${escape(visit.prescription_note || '')}</div>
+
+  <p class="footer">
+    This report contains information saved by your doctor. Follow your doctor's advice for care.
+  </p>
+</body>
+</html>
+`;
   };
 
   const shareConsultationFile = async (visit: any, format: 'csv' | 'pdf') => {
@@ -606,104 +1336,255 @@ export function CustomerApp() {
       if (format === 'pdf') {
         if ((Platform.OS as string) === 'web') {
           const printWindow = window.open('', '_blank');
-          if (!printWindow) { setNotice('Allow pop-ups to print or save this report as a PDF.'); return; }
-          printWindow.document.open(); printWindow.document.write(consultationReportHtml(visit)); printWindow.document.close();
-          printWindow.focus(); printWindow.print(); setNotice('Choose “Save as PDF” in the browser print dialog.'); return;
+          if (!printWindow) {
+            setNotice('Allow pop-ups to print or save this report as a PDF.');
+            return;
+          }
+          printWindow.document.open();
+          printWindow.document.write(consultationReportHtml(visit));
+          printWindow.document.close();
+          printWindow.focus();
+          printWindow.print();
+          setNotice('Choose “Save as PDF” in the browser print dialog.');
+          return;
         }
         ({ uri } = await Print.printToFileAsync({ html: consultationReportHtml(visit) }));
       } else {
         const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-        const medicines = (Array.isArray(visit.prescription_items) ? visit.prescription_items : []).map((item: any) => [item.name, item.strength, item.dosage, item.frequency, item.duration, item.instructions].filter(Boolean).join(' | ')).join('; ');
-        const rows = [['Amedix consultation report'], ['Patient', visit.customer_name || profile?.name], ['Doctor', `Dr. ${visit.doctor_name || ''}`], ['Appointment', visit.scheduled_at], ['Mode', visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'], ['Status', visit.status], ['Consultation ID', visit.id], ['Doctor notes', visit.clinical_note], ['Prescription', medicines || 'No medicines prescribed'], ['Prescription note', visit.prescription_note]];
+        const medicines = (
+          Array.isArray(visit.prescription_items) ? visit.prescription_items : [])
+          .map((item: any) => [
+            item.name,
+            item.strength,
+            item.dosage,
+            item.frequency,
+            item.duration,
+            item.instructions
+          ]
+            .filter(Boolean)
+            .join(' | ')).join('; ');
+        const rows = [
+          ['Amedix consultation report'],
+          ['Patient', visit.customer_name || profile?.name],
+          ['Doctor', `Dr. ${visit.doctor_name || ''}`],
+          ['Appointment', visit.scheduled_at],
+          ['Mode', visit.consultation_mode === 'clinic' ? 'Clinic visit' : 'Online'],
+          ['Status', visit.status],
+          ['Consultation ID', visit.id],
+          ['Doctor notes', visit.clinical_note],
+          ['Prescription', medicines || 'No medicines prescribed'],
+          ['Prescription note', visit.prescription_note]
+        ];
         const csv = `\uFEFF${rows.map((row) => row.map(quote).join(',')).join('\r\n')}`;
         if ((Platform.OS as string) === 'web') {
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-          const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${fileBase}.csv`; link.click(); URL.revokeObjectURL(link.href); setNotice('Excel-compatible report downloaded.'); return;
+          const blob = new Blob([csv], {
+            type: 'text/csv;charset=utf-8'
+          });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `${fileBase}.csv`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+          setNotice('Excel-compatible report downloaded.');
+          return;
         }
         uri = `${FileSystem.cacheDirectory}${fileBase}.csv`;
-        await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        await FileSystem.writeAsStringAsync(
+          uri,
+          csv,
+          {
+            encoding: FileSystem.EncodingType.UTF8
+          }
+        );
       }
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: format === 'pdf' ? 'application/pdf' : 'text/csv', dialogTitle: `Save consultation ${format.toUpperCase()} report` });
-      else setNotice('File created, but sharing is unavailable on this device.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : `Could not create the ${format.toUpperCase()} report.`); }
+      if (await Sharing.isAvailableAsync())
+        await Sharing.shareAsync(
+          uri,
+          {
+            mimeType: format === 'pdf' ? 'application/pdf' : 'text/csv',
+            dialogTitle: `Save consultation ${format.toUpperCase()} report`
+          }
+        );
+      else
+        setNotice('File created, but sharing is unavailable on this device.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : `Could not create the ${format.toUpperCase()} report.`);
+    }
   };
 
   const downloadLabReport = async (booking: any) => {
     const reportUrl = String(booking.report_url ?? '').trim();
     if (reportUrl === '') return;
-    if (/^https?:\/\//i.test(reportUrl)) { await Linking.openURL(reportUrl); return; }
+    if (/^https?:\/\//i.test(reportUrl)) {
+      await Linking.openURL(reportUrl);
+      return;
+    }
     try {
       const { data, fileName, mimeType } = await fetchDocument(`/documents/lab-report/${Number(booking.id)}`);
       if ((Platform.OS as string) === 'web') {
         const blob = new Blob([data]);
-        const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); URL.revokeObjectURL(link.href);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName; link.click();
+        URL.revokeObjectURL(link.href);
         setNotice('Lab report downloaded.');
         return;
       }
       const bytes = new Uint8Array(data);
       let binary = '';
-      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      for (let i = 0; i < bytes.length; i += 0x8000)
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
       const uri = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(uri, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType, dialogTitle: 'Save lab report' });
-      else setNotice('Report downloaded, but sharing is unavailable on this device.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not download the lab report.'); }
+      await FileSystem.writeAsStringAsync(uri, btoa(binary),
+        {
+          encoding: FileSystem.EncodingType.Base64
+        }
+      );
+      if (await Sharing.isAvailableAsync())
+        await Sharing.shareAsync(
+          uri,
+          {
+            mimeType,
+            dialogTitle: 'Save lab report'
+          }
+        );
+      else
+        setNotice('Report downloaded, but sharing is unavailable on this device.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not download the lab report.');
+    }
   };
 
   const pickPrescription = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true, multiple: false });
-      if (result.canceled || !result.assets[0]) return;
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+        multiple: false
+      });
+      if (result.canceled || !result.assets[0])
+        return;
       const file = result.assets[0];
-      if (file.size && file.size > 5 * 1024 * 1024) { setNotice('Choose a JPG, PNG, WebP or PDF file up to 5 MB.'); return; }
-      setPrescriptionAsset(file); setNotice('');
-    } catch { setNotice('Could not open your files. Please try again.'); }
+      if (file.size && file.size > 5 * 1024 * 1024) {
+        setNotice('Choose a JPG, PNG, WebP or PDF file up to 5 MB.');
+        return;
+      }
+      setPrescriptionAsset(file);
+      setNotice('');
+    } catch {
+      setNotice('Could not open your files. Please try again.');
+    }
   };
 
   const submitPrescription = async () => {
-    if (!profile) { setNotice('Sign in to upload a prescription.'); go('Sign in'); return; }
-    if (!zoneId) { setNotice('Choose your service area before sending the prescription.'); return; }
-    if (!prescriptionAsset) { setNotice('Choose a prescription image or PDF first.'); return; }
+    if (!profile) {
+      setNotice('Sign in to upload a prescription.');
+      go('Sign in');
+      return;
+    }
+    if (!zoneId) {
+      setNotice('Choose your service area before sending the prescription.');
+      return;
+    }
+    if (!prescriptionAsset) {
+      setNotice('Choose a prescription image or PDF first.');
+      return;
+    }
     setBusy(true);
     try {
       let base64 = prescriptionAsset.base64 ?? '';
-      if (!base64) base64 = await FileSystem.readAsStringAsync(prescriptionAsset.uri, { encoding: 'base64' });
+      if (!base64)
+        base64 = await FileSystem.readAsStringAsync(prescriptionAsset.uri, { encoding: 'base64' });
       const mime = prescriptionAsset.mimeType || (prescriptionAsset.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
       const payload = await apiCall<any>('/prescription-requests', {
         method: 'POST', body: {
-          customer_name: profile.name, customer_phone: profile.phone, zone_id: zoneId,
-          prescription_base64: `data:${mime};base64,${base64}`, file_name: prescriptionAsset.name, note: prescriptionNote,
+          customer_name: profile.name,
+          customer_phone: profile.phone,
+          zone_id: zoneId,
+          prescription_base64: `data:${mime};base64,${base64}`,
+          file_name: prescriptionAsset.name,
+          note: prescriptionNote,
         }
       });
-      setPrescriptionAsset(null); setPrescriptionNote(''); setPrescriptions((current) => [payload.data ?? payload, ...current]);
+      setPrescriptionAsset(null);
+      setPrescriptionNote('');
+      setPrescriptions((current) => [payload.data ?? payload, ...current]);
       setNotice('Prescription uploaded. A pharmacist will review it and send a quote.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Prescription upload failed.'); }
-    finally { setBusy(false); }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Prescription upload failed.');
+    }
+    finally {
+      setBusy(false);
+    }
   };
 
   const sendDoctorPrescriptionToPharmacy = async (consultation: any, pharmacy: any) => {
-    if (!profile) { setNotice('Sign in to request prescription pickup.'); go('Sign in'); return; }
+    if (!profile) {
+      setNotice('Sign in to request prescription pickup.');
+      go('Sign in');
+      return;
+    }
     try {
-      const result = await apiCall<any>('/prescription-requests', { method: 'POST', body: { consultation_id: Number(consultation.id), pharmacy_id: Number(pharmacy.id) } });
+      const result = await apiCall<any>('/prescription-requests',
+        {
+          method: 'POST',
+          body: {
+            consultation_id: Number(consultation.id),
+            pharmacy_id: Number(pharmacy.id)
+          }
+        });
       const request = result.data ?? result;
       setPrescriptions((current) => [request, ...current.filter((item) => Number(item.id) !== Number(request.id))]);
       setNotice('Prescription sent to the selected pharmacy. We will notify you when it is ready for pickup.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send this prescription to the pharmacy.'); }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not send this prescription to the pharmacy.');
+    }
   };
 
   const confirmPrescriptionPickup = async (request: any) => {
     try {
-      await apiCall(`/prescription-requests/${request.id}/collected`, { method: 'POST', body: {} });
+      await apiCall(`/prescription-requests/${request.id}/collected`,
+        {
+          method: 'POST',
+          body: {}
+        }
+      );
       setPrescriptions((current) => current.map((item) => Number(item.id) === Number(request.id) ? { ...item, status: 'collected' } : item));
       setNotice('Pickup confirmed. Thank you.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not confirm pickup.'); }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not confirm pickup.');
+    }
   };
 
-  const section = (label: string, action?: () => void) => <View style={s.sectionHead}><Text style={s.sectionTitle}>{label}</Text>{action && <Pressable onPress={action}><Text style={s.seeAll}>See all  ›</Text></Pressable>}</View>;
-  const primaryButton = (label: string, action: () => void, secondary = false) => <Pressable onPress={action} style={[s.button, secondary && s.buttonOutline]}><Text style={[s.buttonText, secondary && s.buttonTextOutline]}>{label}</Text></Pressable>;
-  const empty = (glyph: string, heading: string, copy: string) => <View style={s.empty}><Text style={s.emptyGlyph}>{glyph}</Text><Text style={s.emptyTitle}>{heading}</Text><Text style={s.emptyCopy}>{copy}</Text></View>;
+  const section = (label: string, action?: () => void) =>
+    <View style={s.sectionHead}>
+      <Text style={s.sectionTitle}>{label}</Text>
+      {
+        action && <Pressable onPress={action}>
+          <Text style={s.seeAll}>See all  ›</Text>
+        </Pressable>
+      }
+    </View>;
+  const primaryButton = (label: string, action: () => void, secondary = false) =>
+    <Pressable onPress={action} style={[s.button, secondary && s.buttonOutline]}>
+      <Text style={[s.buttonText, secondary && s.buttonTextOutline]}>{label}</Text>
+    </Pressable>;
+  const empty = (glyph: string, heading: string, copy: string) =>
+    <View style={s.empty}>
+      <Text style={s.emptyGlyph}>{glyph}</Text>
+      <Text style={s.emptyTitle}>{heading}</Text>
+      <Text style={s.emptyCopy}>{copy}</Text>
+    </View>;
 
-  const serviceCard = (glyph: string, title: string, detail: string, target: Page, _accent: string) => <Pressable key={title} accessibilityRole="button" accessibilityLabel={detail ? title + '. ' + detail : title} onPress={() => void openPage(target)} style={s.serviceCard}><View style={s.serviceIcon}><Text style={s.serviceGlyph}>{glyph}</Text></View><Text style={s.serviceTitle}>{title}</Text>{detail ? <Text style={s.serviceSub}>{detail}</Text> : null}</Pressable>;
+  const serviceCard = (glyph: string, title: string, detail: string, target: Page, _accent: string) =>
+    <Pressable key={title} accessibilityRole="button" accessibilityLabel={detail ? title + '. ' + detail : title} onPress={() => void openPage(target)} style={s.serviceCard}>
+      <View style={s.serviceIcon}>
+        <Text style={s.serviceGlyph}>{glyph}</Text>
+      </View>
+      <Text style={s.serviceTitle}>{title}</Text>
+      {detail ? <Text style={s.serviceSub}>{detail}
+      </Text> : null}
+    </Pressable>;
 
   const productCards = (items = products) => {
     const visibleItems = items;
@@ -711,7 +1592,10 @@ export function CustomerApp() {
       const currentPrice = product.discount_price && product.discount_price > 0 ? product.discount_price : product.price;
       const hasDiscount = currentPrice < product.price;
       return <Pressable key={product.id} accessibilityRole="button" accessibilityLabel={`View ${product.name} details`} onPress={() => void openProduct(product)} style={s.productCard}>
-        <View style={s.productImage}>{product.thumbnail_full_url ? <Image source={{ uri: product.thumbnail_full_url }} contentFit="contain" style={s.productPhoto} /> : <Text style={s.productFallback}>💊</Text>}
+        <View style={s.productImage}>
+          {product.thumbnail_full_url ?
+            <Image source={{ uri: product.thumbnail_full_url }} contentFit="contain" style={s.productPhoto} /> : <Text style={s.productFallback}>💊</Text>
+          }
           <Pressable onPress={(event) => { event.stopPropagation(); void toggleWishlist(product); }} style={s.heart}><Text style={s.heartText}>{wishlist.some((item) => item.product_id === product.id) ? '♥' : '♡'}</Text></Pressable>
           {hasDiscount && <Text style={s.discountBadge}>{Math.round((1 - currentPrice / product.price) * 100)}% OFF</Text>}
         </View>
@@ -728,7 +1612,7 @@ export function CustomerApp() {
     <View style={s.homeTopPanel}>
       <View style={s.deliveryPromise}><View style={s.deliveryDot} /><Pressable accessibilityRole="button" accessibilityLabel="Browse medicines, 24/7 delivery available" onPress={() => { setCategoryId(null); setSelectedSubcategoryId(null); go('Categories'); }} style={{ flex: 1, minHeight: 48, alignSelf: 'stretch', justifyContent: 'center' }}><Text style={s.deliveryPromiseText}>24/7 medicine delivery available</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={'Open cart, ' + summary.items_count + ' items'} onPress={() => { setHistory((items) => [...items, page]); setPage('Cart'); void loadCart(); }} style={s.homeHeaderAction}><Text style={s.deliveryPromiseIcon}>▢</Text></Pressable></View>
       <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text>
-      <TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} accessibilityLabel="Search medicines and brands" style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>→</Text></View>
+        <TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} accessibilityLabel="Search medicines and brands" style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>→</Text></View>
       <View style={s.serviceGrid}>{serviceCard('✚', 'Medicines', '', 'Categories', '#0a4542')}{serviceCard('🧪', 'Lab Tests', '', 'Lab Tests', '#362d5b')}{serviceCard('▣', 'Consult', '', 'Consult a Doctor', '#123c50')}{serviceCard('⇧', 'Prescription', '', 'Prescription Centre', '#1c4a38')}</View>
     </View>
     <View style={s.homeIntro}><View style={{ flex: 1 }}><Text style={s.homeIntroTitle}>Healthcare, all in one place</Text><Text style={s.homeIntroCopy}>Medicines, lab tests and doctor consultations, delivered with care.</Text></View><Text accessibilityElementsHidden style={s.homeIntroArt}>✚  🧪</Text></View>
@@ -973,21 +1857,21 @@ export function CustomerApp() {
 
   const title = page === 'Category products'
     ? (selectedSubcategoryId
-        ? (categories.find((c) => c.id === categoryId)?.subcategories?.find((s) => s.id === selectedSubcategoryId)?.name
-            ?? categories.find((c) => c.id === categoryId)?.name
-            ?? 'Products')
-        : (categories.find((category) => category.id === categoryId)?.name ?? 'All products'))
+      ? (categories.find((c) => c.id === categoryId)?.subcategories?.find((s) => s.id === selectedSubcategoryId)?.name
+        ?? categories.find((c) => c.id === categoryId)?.name
+        ?? 'Products')
+      : (categories.find((category) => category.id === categoryId)?.name ?? 'All products'))
     : page === 'Subcategories'
-    ? `${categories.find((c) => c.id === categoryId)?.name ?? 'Category'} Subcategories`
-    : page === 'My Account'
-    ? 'My Account'
-    : page === 'Medical Orders'
-    ? 'My Orders'
-    : page === 'Booking'
-    ? 'Booking'
-    : page === 'Product details'
-    ? 'Product details'
-    : page;
+      ? `${categories.find((c) => c.id === categoryId)?.name ?? 'Category'} Subcategories`
+      : page === 'My Account'
+        ? 'My Account'
+        : page === 'Medical Orders'
+          ? 'My Orders'
+          : page === 'Booking'
+            ? 'Booking'
+            : page === 'Product details'
+              ? 'Product details'
+              : page;
   // Keep the primary navigation limited to the four customer areas. Cart remains
   // available from the bag button so shopping and checkout are still reachable.
   const navItems: [string, Page, string][] = [['⌂', 'Home', 'Home'], ['▦', 'Categories', 'Categories'], ['▱', 'Medical Orders', 'Orders'], ['◉', 'My Account', 'My Account']];
@@ -1376,7 +2260,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   categoryText: {
     color: C.softText,
     fontSize: 10,
-     fontWeight: '700',
+    fontWeight: '700',
     textAlign: 'center', lineHeight: 11
   },
   chatBubble: { maxWidth: '85%', alignSelf: 'flex-start', backgroundColor: C.tileBg, padding: 10, borderRadius: 11 },
