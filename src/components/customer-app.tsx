@@ -12,7 +12,7 @@ import { LocationMap, type MapPin } from '@/components/location-map';
 import { api, backendUrl, clearLoginToken, fetchDocument, hasBackendUrl, hasLoginToken, readAppearanceSetting, readCustomerArea, saveAppearanceSetting, saveCustomerArea, saveLoginToken } from '@/services/medical-api';
 import { DEMO_BANNERS, DEMO_CATEGORIES, DEMO_DOCTORS, DEMO_LABS, DEMO_PRODUCTS } from '@/services/demo-data';
 
-type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
+type Page = 'Home' | 'Categories' | 'Subcategories' | 'Category products' | 'Product details' | 'Medical Orders' | 'Cart' | 'My Account' | 'Lab Tests' | 'Diagnostics' | 'Consult a Doctor' | 'Booking' | 'Prescription Centre' | 'Notifications' | 'Personal details' | 'Health log' | 'Refunds' | 'Saved products' | 'Delivery addresses' | 'Wallet' | 'Help and support' | 'Sign in';
 
 type Subcategory = {
   id: number;
@@ -61,6 +61,7 @@ type CartItem = {
   name: string;
   quantity: number;
   price: number;
+  mrp?: number;
   unit?: string;
   thumbnail_full_url?: string;
   stock?: number
@@ -74,6 +75,10 @@ type Zone = {
   pincode?: string;
   latitude?: number | string;
   longitude?: number | string
+  express_available?: boolean | number;
+  slot_available?: boolean | number;
+  same_day_available?: boolean | number;
+  next_day_available?: boolean | number;
 };
 
 type LocationChoice = MapPin & {
@@ -311,7 +316,7 @@ export function CustomerApp() {
   const [labCategoryFilter, setLabCategoryFilter] = useState('All');
   const [labSubcategoryFilter, setLabSubcategoryFilter] = useState('All');
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number } | null>(null);
+  const [appointment, setAppointment] = useState<{ kind: 'lab' | 'doctor'; id: number; isLabTest?: boolean } | null>(null);
   const [consultationMode, setConsultationMode] = useState<'online' | 'clinic'>('online');
   const [consultationReason, setConsultationReason] = useState('');
   const [prescriptionAsset, setPrescriptionAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
@@ -333,14 +338,31 @@ export function CustomerApp() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [bookingDate, setBookingDate] = useState<Date | null>(null);
-  const [deliveryType, setDeliveryType] = useState<'express' | 'slot' | 'same_day' | 'next_day'>('express');
-  const [deliverySlot, setDeliverySlot] = useState<string>('30-60 mins Express');
+  const [requestedDeliveryType, setDeliveryType] = useState<'express' | 'slot' | 'same_day' | 'next_day'>('express');
+  const [requestedDeliverySlot, setDeliverySlot] = useState<string>('30-60 mins Express');
   const [bookingSlot, setBookingSlot] = useState('');
-  const [orderRows, setOrderRows] = useState<any[]>([]);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [appearance, setAppearance] = useState('Use device setting');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const selectedDeliveryZone = zones.find((zone) => zone.id === zoneId);
+  const deliveryAvailability: Record<string, boolean | number | undefined> = {
+    express: selectedDeliveryZone?.express_available,
+    slot: selectedDeliveryZone?.slot_available,
+    same_day: selectedDeliveryZone?.same_day_available,
+    next_day: selectedDeliveryZone?.next_day_available,
+  };
+  const requestedDeliveryUnavailable = deliveryAvailability[requestedDeliveryType] === false || deliveryAvailability[requestedDeliveryType] === 0;
+  const fallbackDeliveryType = (['next_day', 'same_day', 'slot', 'express'] as const).find(
+    (type) => deliveryAvailability[type] !== false && deliveryAvailability[type] !== 0,
+  );
+  const effectiveDeliveryType = requestedDeliveryUnavailable && fallbackDeliveryType ? fallbackDeliveryType : requestedDeliveryType;
+  const effectiveDeliverySlot = effectiveDeliveryType === requestedDeliveryType
+    ? requestedDeliverySlot
+    : effectiveDeliveryType === 'express' ? '30-60 mins Express'
+      : effectiveDeliveryType === 'slot' ? '10:00 AM - 12:00 PM'
+        : effectiveDeliveryType === 'same_day' ? 'Same Day Delivery' : 'Next Day Delivery';
 
   const systemColorScheme = useColorScheme();
   const isLightTheme = appearance === 'Light' || (appearance === 'Use device setting' && systemColorScheme === 'light');
@@ -367,7 +389,7 @@ export function CustomerApp() {
     setAreaPickerOpen(true);
   };
 
-  const loadPrescriptionCentre = async () => {
+  const loadPrescriptionCentre = useCallback(async () => {
     const [data, consultations, pharmacies, savedAddresses] = await Promise.all([
       apiCall<any>('/prescription-requests'),
       apiCall<any>('/consultations'),
@@ -381,7 +403,7 @@ export function CustomerApp() {
     setPrescriptionPaymentMethods(data.payment_methods ?? []);
     if (!(data.payment_methods ?? []).some((method: any) => method.id === prescriptionPaymentMethod))
       setPrescriptionPaymentMethod((data.payment_methods ?? [])[0]?.id ?? '');
-  };
+  }, [zoneId, prescriptionPaymentMethod]);
 
   const acceptPrescriptionQuote = async (request: any) => {
     const quoteId = Number(request.quote?.id ?? request.quote_id ?? 0);
@@ -434,7 +456,7 @@ export function CustomerApp() {
 
   const loadCart = useCallback(async () => {
     try {
-      const response = await apiCall<{ data?: CartItem[]; summary?: Summary }>('/cart');
+      const response = await apiCall<{ data?: CartItem[]; summary?: Summary }>(`/cart?delivery_type=${effectiveDeliveryType}`);
       const localItems = demoCart;
       setCart([...(response.data ?? []), ...localItems]);
       if (response.summary) {
@@ -443,7 +465,7 @@ export function CustomerApp() {
         const medicineDiscount = Number(response.summary.medicine_discount || 0);
         const couponDiscount = Number(response.summary.coupon_discount || 0);
         const taxTotal = Number(response.summary.tax_total || 0);
-        const deliveryCharge = 0;
+        const deliveryCharge = effectiveDeliveryType === 'express' && subtotal > 0 && subtotal < 499 ? 25 : 0;
         const platformFee = subtotal > 0 ? 20 : 0;
         setSummary({
           ...response.summary,
@@ -462,7 +484,7 @@ export function CustomerApp() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to load your cart.');
     }
-  }, [demoCart]);
+  }, [demoCart, effectiveDeliveryType]);
 
   const applyCartCoupon = async () => {
     if (!couponCode.trim()) { setNotice('Enter a coupon code first.'); return; }
@@ -528,7 +550,7 @@ export function CustomerApp() {
         const sampleProducts = (DEMO_PRODUCTS as unknown as Product[]).filter((item) => !search.trim() || item.name.toLowerCase().includes(search.trim().toLowerCase()));
         setProducts(liveProducts.length ? liveProducts : sampleProducts);
       }
-    } catch (error) {
+    } catch {
       setCategories(DEMO_CATEGORIES as unknown as Category[]); setProducts(DEMO_PRODUCTS as unknown as Product[]);
       setBanners(DEMO_BANNERS); setDoctors(DEMO_DOCTORS); setLabs(DEMO_LABS);
       setZones([{ id: -1, name: 'Central - Prayagraj', city: 'Prayagraj', state: 'Uttar Pradesh', pincode: '211001', latitude: 25.4358, longitude: 81.8463 }]);
@@ -603,7 +625,7 @@ export function CustomerApp() {
           }
         }
         await loadCart();
-      } catch (error) {
+      } catch {
         if (active) {
           setCategories(DEMO_CATEGORIES as unknown as Category[]);
           setProducts(DEMO_PRODUCTS as unknown as Product[]);
@@ -654,6 +676,7 @@ export function CustomerApp() {
   }, [zoneId, categoryId, selectedSubcategoryId, query, refreshKey, loadCatalog]);
 
   const openPage = async (next: Page) => {
+    if (next === 'Lab Tests' || next === 'Diagnostics') { setLabCategoryFilter('All'); setLabSubcategoryFilter('All'); }
     go(next);
     if (!hasBackendUrl()) return;
     try {
@@ -703,7 +726,7 @@ export function CustomerApp() {
       } else if (next === 'Saved products') {
         const data = await apiCall<any>('/wishlist');
         setWishlist(data.data ?? []);
-      } else if (next === 'Lab Tests' || next === 'Consult a Doctor') {
+      } else if (next === 'Lab Tests' || next === 'Diagnostics' || next === 'Consult a Doctor') {
         if (!zoneId || zoneId < 0) {
           setLabs(DEMO_LABS);
           setDoctors(DEMO_DOCTORS);
@@ -848,7 +871,7 @@ export function CustomerApp() {
       void loadPrescriptionCentre().catch(() => undefined);
     }, 15000);
     return () => clearInterval(timer);
-  }, [profile?.id, page, zoneId]);
+  }, [profile, page, loadPrescriptionCentre]);
 
   const addToCart = async (product: Product) => {
     if (!zoneId) { setNotice('Choose your delivery area before adding medicines.'); return; }
@@ -856,7 +879,7 @@ export function CustomerApp() {
       if (product.id < 0 || zoneId < 0) {
         const existing = demoCart.find((item) => item.product_id === product.id);
         const nextDemoCart = existing ? demoCart.map((item) =>
-          item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...demoCart, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, unit: product.unit, stock: product.stock }];
+          item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...demoCart, { id: product.id, product_id: product.id, name: product.name, quantity: 1, price: product.discount_price || product.price, mrp: product.price, unit: product.unit, stock: product.stock }];
         const nextCart = [...cart.filter((item) => item.product_id >= 0), ...nextDemoCart];
         setDemoCart(nextDemoCart);
         setCart(nextCart);
@@ -867,10 +890,10 @@ export function CustomerApp() {
           coupon_discount: 0,
           total_discount: 0,
           tax_total: 0,
-          delivery_charge: 0,
+          delivery_charge: subtotal < 499 ? 25 : 0,
           platform_fee: platformFee,
           extra_discount_threshold: 0,
-          total: subtotal + platformFee,
+          total: subtotal + platformFee + (subtotal < 499 ? 25 : 0),
           items_count: nextCart.reduce((sum, item) => sum + item.quantity, 0)
         });
         setNotice(`${product.name} added to cart.`);
@@ -919,10 +942,10 @@ export function CustomerApp() {
           coupon_discount: 0,
           total_discount: 0,
           tax_total: 0,
-          delivery_charge: 0,
+          delivery_charge: subtotal > 0 && subtotal < 499 ? 25 : 0,
           platform_fee: platformFee,
           extra_discount_threshold: 0,
-          total: subtotal + platformFee,
+          total: subtotal + platformFee + (subtotal > 0 && subtotal < 499 ? 25 : 0),
           items_count: nextCart.reduce((sum, entry) => sum + entry.quantity, 0)
         });
         return;
@@ -1043,8 +1066,8 @@ export function CustomerApp() {
         , order_amount: checkoutTotal(),
         type: 'Medicine order',
         created_at: 'Just now',
-        delivery_type: deliveryType,
-        delivery_slot: deliverySlot
+        delivery_type: effectiveDeliveryType,
+        delivery_slot: effectiveDeliverySlot
       },
       ...items]);
       setCart([]);
@@ -1082,8 +1105,8 @@ export function CustomerApp() {
           address: addressText || undefined,
           payment_method: 'cash_on_delivery',
           age_confirmed: true,
-          delivery_type: deliveryType,
-          delivery_slot: deliverySlot,
+          delivery_type: effectiveDeliveryType,
+          delivery_slot: effectiveDeliverySlot,
         }
       });
       setNotice(payload.message ?? 'Your order has been placed.');
@@ -1694,10 +1717,10 @@ export function CustomerApp() {
       <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text>
         <TextInput value={query} onChangeText={setQuery} placeholder="Search medicines, brands..." placeholderTextColor={C.muted} accessibilityLabel="Search medicines and brands" style={s.searchInput} returnKeyType="search" /><Text style={s.searchMic}>→</Text></View>
       <View style={s.serviceGrid}>
-        {homeServiceCard('Medicines', 'Categories', require('../../assets/WhatsApp Image 2026-10-08 at 2.16.08 PM (1).jpeg'))}
+        {homeServiceCard('Medicines', 'Categories', require('../../assets/clean/WhatsApp Image 2026-10-08 at 2.16.08 PM (1).png'))}
         {homeServiceCard('Labs', 'Lab Tests', require('../../assets/WhatsApp Image 2026-10-08 at 2.16.09 PM.jpeg'))}
-        {homeServiceCard('Consult', 'Consult a Doctor', require('../../assets/WhatsApp Image 2026-10-08 at 2.16.08 PM.jpeg'))}
-        {homeServiceCard('Diagnostics', 'Lab Tests', require('../../assets/WhatsApp Image 2026-10-08 at 2.16.07 PM.jpeg'))}
+        {homeServiceCard('Consult', 'Consult a Doctor', require('../../assets/clean/WhatsApp Image 2026-10-08 at 2.16.08 PM.png'))}
+        {homeServiceCard('Diagnostics', 'Diagnostics', require('../../assets/WhatsApp Image 2026-10-08 at 2.16.07 PM.jpeg'))}
       </View>
     </View>
 
@@ -1737,12 +1760,12 @@ export function CustomerApp() {
       </View>
     </View>
 
-    <Pressable accessibilityRole="button" accessibilityLabel="Explore diagnostic tests" onPress={() => void openPage('Lab Tests')} style={s.diagnosticsPromo}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Explore diagnostic tests" onPress={() => void openPage('Diagnostics')} style={s.diagnosticsPromo}>
       <Image source={require('../../assets/WhatsApp Image 2026-10-08 at 2.55.29 PM.jpeg')} contentFit="cover" style={s.diagnosticsPromoImage} accessibilityLabel="Diagnostics, blood tests, CT, MRI, X-Ray and ultrasound offers" />
     </Pressable>
     <View style={s.prescriptionHomeCard}>
       <Pressable accessibilityRole="button" accessibilityLabel="Upload prescription image" onPress={() => void pickPrescription()} style={s.prescriptionArtwork}>
-        <Image source={require('../../assets/WhatsApp Image 2026-10-08 at 2.16.07 PM (1).jpeg')} contentFit="cover" style={s.prescriptionArtworkImage} />
+        <Image source={require('../../assets/clean/WhatsApp Image 2026-10-08 at 2.16.07 PM (1).png')} contentFit="cover" style={s.prescriptionArtworkImage} />
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.prescriptionHomeEyebrow}>UPLOAD PRESCRIPTION</Text>
@@ -1754,9 +1777,8 @@ export function CustomerApp() {
         </View>
       </View>
     </View>
-    {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth }]}>
-      {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : null}
-      <View style={s.promoShade} /><Text style={s.promoBrand}>AIMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text>
+    {banners.length > 0 ? <><View style={s.bannerScroller}><ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setBannerIndex(Math.round(event.nativeEvent.contentOffset.x / bannerWidth))}>{banners.map((banner) => <Pressable key={banner.id} onPress={() => go('Categories')} style={[s.promo, { width: bannerWidth, padding: banner.image_full_url ? 0 : 15 }]}>
+      {banner.image_full_url ? <Image source={{ uri: banner.image_full_url }} contentFit="cover" style={s.promoImage} /> : <><View style={s.promoShade} /><Text style={s.promoBrand}>AIMEDIX  ·  HEALTH & WELLNESS</Text><Text style={s.promoTitle}>{banner.title || 'Good health, great savings.'}</Text><Text style={s.promoCopy}>{banner.subtitle || 'Everyday care, delivered to your door.'}</Text><Text style={s.promoCta}>{banner.action_text || 'SHOP NOW  →'}</Text></>}
     </Pressable>)}</ScrollView></View><View style={s.dots}>{banners.map((banner, i) => <View key={banner.id} style={[s.dot, i === bannerIndex && s.dotOn]} />)}</View></> : null}
     {zones.length > 1 && <><Pressable accessibilityRole="button" accessibilityLabel="Choose your service area on map" onPress={openAreaPicker} style={s.sectionHead}><Text style={s.sectionTitle}>Choose your service area</Text><Text style={s.seeAll}>Choose on map &gt;</Text></Pressable><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.zoneRow}>{zones.map((zone) => <Pressable key={zone.id} onPress={() => { setZoneId(zone.id); setRefreshKey((value) => value + 1); }} style={[s.zoneChip, zone.id === zoneId && s.zoneSelected]}><Text style={[s.zoneText, zone.id === zoneId && s.zoneTextSelected]}>{zone.name}</Text></Pressable>)}</ScrollView></>}
     {section('Shop by category', () => { setCategoryId(null); setSelectedSubcategoryId(null); go('Categories'); })}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setCategoryId(category.id); setSelectedSubcategoryId(null); if (category.subcategories && category.subcategories.length > 0) { go('Subcategories'); } else { setProducts([]); setCatalogLoading(Boolean(zoneId)); setRefreshKey((value) => value + 1); go('Category products'); } }} style={s.categoryTile}>{category.image_full_url ? <Image source={{ uri: category.image_full_url }} contentFit="cover" style={s.categoryImage} /> : <Text style={s.categoryEmoji}>{category.name.toLowerCase().includes('medicine') ? '💊' : category.name.toLowerCase().includes('baby') ? '🍼' : category.name.toLowerCase().includes('xray') ? '📷' : category.name.toLowerCase().includes('ct') ? '🔬' : category.name.toLowerCase().includes('mri') ? '🧲' : category.name.toLowerCase().includes('usg') ? '🩺' : category.name.toLowerCase().includes('ecg') ? '⚡' : '✚'}</Text>}<Text style={s.categoryText} numberOfLines={2}>{category.name}</Text></Pressable>)}</ScrollView>
@@ -1825,65 +1847,81 @@ export function CustomerApp() {
 
   const checkoutTotal = () => {
     const discount = Math.min(summary.subtotal, summary.medicine_discount + summary.coupon_discount);
-    return Math.max(0, summary.subtotal - discount) + summary.tax_total + (cart.length ? 20 : 0);
+    const delivery = effectiveDeliveryType === 'express' && summary.subtotal > 0 && summary.subtotal < 499 ? 25 : 0;
+    return Math.max(0, summary.subtotal - discount) + summary.tax_total + delivery + (cart.length ? 20 : 0);
   };
 
-  const cartScreen = () => <>
+  const mrpSavings = cart.reduce((total, item) => total + Math.max(0, Number(item.mrp ?? item.price) - item.price) * item.quantity, 0);
+
+  const cartScreen = () => {
+    const activeZone = zones.find((zone) => zone.id === zoneId);
+    const hasZone = zoneId !== null;
+    const modeAvailable = (key: 'express_available' | 'slot_available' | 'same_day_available' | 'next_day_available') => hasZone && activeZone?.[key] !== false && activeZone?.[key] !== 0;
+    const setDeliveryMode = (type: 'express' | 'slot' | 'same_day' | 'next_day', available: boolean) => {
+      if (!available) return;
+      setDeliveryType(type);
+      setDeliverySlot(type === 'express' ? '30-60 mins Express' : type === 'slot' ? '10:00 AM - 12:00 PM' : type === 'same_day' ? 'Same Day Delivery' : 'Next Day Delivery');
+    };
+    return <>
     {!profile && <View style={s.formCard}><Text style={s.fieldLabel}>Contact details for your order</Text><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></View>}
     {summary.extra_discount_threshold > 0 && <View style={s.cartNudge}><Text style={s.nudgeGlyph}>✦</Text><Text style={s.nudgeText}>Add {money(summary.extra_discount_threshold)} more to reach the next medicine offer level.</Text></View>}
     {cart.length ? cart.map((item) => <View key={item.id} style={s.cartRow}>{item.thumbnail_full_url ? <Image source={{ uri: item.thumbnail_full_url }} contentFit="contain" style={s.cartImage} /> : <View style={[s.cartImage, s.cartFallback]}><Text style={{ color: C.teal, fontSize: 25 }}>💊</Text></View>}<View style={{ flex: 1 }}><Text style={s.cartName}>{item.name}</Text><Text style={s.cartSub}>{money(item.price)}{item.unit ? ` · ${item.unit}` : ''}</Text><View style={s.qtyRow}><Pressable onPress={() => void updateQuantity(item, item.quantity - 1)} style={s.qtyButton}><Text style={s.qtyText}>−</Text></Pressable><Text style={s.qtyValue}>{item.quantity}</Text><Pressable onPress={() => void updateQuantity(item, item.quantity + 1)} style={s.qtyButton}><Text style={s.qtyText}>+</Text></Pressable><Pressable onPress={() => void updateQuantity(item, 0)} style={s.remove}><Text style={s.removeText}>Remove</Text></Pressable></View></View><Text style={s.productPrice}>{money(item.price * item.quantity)}</Text></View>) : empty('▱', 'Your cart is empty', 'Add medicines to get started.')}
-    {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine styles={s} label="Item total" value={money(summary.subtotal)} /><SummaryLine styles={s} label="Medical discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine styles={s} label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine styles={s} label="Taxes" value={money(summary.tax_total)} /><SummaryLine styles={s} label="Delivery" value={deliveryType === 'express' ? 'FREE Express' : 'FREE'} green /><SummaryLine styles={s} label="Platform, packaging & handling fee" value={money(20)} /><View style={s.summaryDivider} /><SummaryLine styles={s} label="To pay" value={money(checkoutTotal())} strong />
+    {!!cart.length && <View style={s.summaryCard}><Text style={s.summaryTitle}>Bill summary</Text><SummaryLine styles={s} label="Item total" value={money(summary.subtotal)} /><SummaryLine styles={s} label="Saved vs MRP" value={`− ${money(mrpSavings)}`} green /><SummaryLine styles={s} label="Medical discount" value={`− ${money(summary.medicine_discount)}`} green /><SummaryLine styles={s} label="Coupon discount" value={`− ${money(summary.coupon_discount)}`} green /><SummaryLine styles={s} label="Taxes" value={money(summary.tax_total)} /><SummaryLine styles={s} label="Delivery" value={effectiveDeliveryType === 'express' && summary.subtotal < 499 ? money(25) : 'FREE'} green={effectiveDeliveryType !== 'express' || summary.subtotal >= 499} /><SummaryLine styles={s} label="Handling & Safety Packaging" value={money(20)} /><View style={s.summaryDivider} /><SummaryLine styles={s} label="To pay" value={money(checkoutTotal())} strong />
       <View style={s.couponRow}><TextInput value={couponCode} onChangeText={setCouponCode} placeholder="Enter coupon code" placeholderTextColor={C.muted} autoCapitalize="characters" style={[s.input, s.couponInput]} /><Pressable onPress={() => void applyCartCoupon()} style={s.couponApply}><Text style={s.couponApplyText}>Apply</Text></Pressable></View>
-      <Text style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>Coupon offers are available on medicine orders of ₹1,000 or more.</Text>
+      {summary.subtotal >= 1000 ? <Text style={{ color: C.teal, fontSize: 11, fontWeight: '700', marginTop: 5 }}>Coupon offer available on this ₹1,000+ medicine order. Enter the coupon code to apply.</Text> : <Text style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>Add {money(1000 - summary.subtotal)} more in medicines to see coupon offers.</Text>}
       {!profile && <Pressable onPress={() => go('Sign in')} style={s.loginPrompt}><Text style={s.loginPromptText}>Sign in to complete checkout and save your orders  ›</Text></Pressable>}
       <Text style={[s.checkoutAddressTitle, { marginTop: 14 }]}>Delivery speed & timing</Text>
       <View style={{ gap: 8, marginBottom: 10 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable
-            onPress={() => { setDeliveryType('express'); setDeliverySlot('30-60 mins Express'); }}
-            style={[s.deliveryChoice, { backgroundColor: deliveryType === 'express' ? C.slotOnBg : C.card, borderColor: deliveryType === 'express' ? C.teal : C.line }]}
+            disabled={!modeAvailable('express_available')}
+            onPress={() => setDeliveryMode('express', modeAvailable('express_available'))}
+            style={[s.deliveryChoice, !modeAvailable('express_available') && s.deliveryChoiceLocked, { backgroundColor: effectiveDeliveryType === 'express' ? C.slotOnBg : C.card, borderColor: effectiveDeliveryType === 'express' ? C.teal : C.line }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Text style={{ fontSize: 18 }}>⚡</Text>
-              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: deliveryType === 'express' ? C.mint : C.white }]}>30-60 min Express</Text>
+              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: effectiveDeliveryType === 'express' ? C.mint : C.white }]}>30-60 min Express</Text>
             </View>
-            <Text style={s.deliveryChoiceCopy}>Fastest local delivery</Text>
+              <Text style={s.deliveryChoiceCopy}>{modeAvailable('express_available') ? `Fastest local delivery${summary.subtotal > 0 && summary.subtotal < 499 ? ' · ₹25 below ₹499' : ' · Free over ₹499'}` : 'Unavailable in this zone'}</Text>
           </Pressable>
           <Pressable
-            onPress={() => { setDeliveryType('slot'); if (!['10:00 AM - 12:00 PM', '12:00 PM - 02:00 PM', '02:00 PM - 04:00 PM', '04:00 PM - 06:00 PM', '06:00 PM - 08:00 PM', '08:00 PM - 10:00 PM'].includes(deliverySlot)) setDeliverySlot('10:00 AM - 12:00 PM'); }}
-            style={[s.deliveryChoice, { backgroundColor: deliveryType === 'slot' ? C.slotOnBg : C.card, borderColor: deliveryType === 'slot' ? C.teal : C.line }]}
+            disabled={!modeAvailable('slot_available')}
+            onPress={() => setDeliveryMode('slot', modeAvailable('slot_available'))}
+            style={[s.deliveryChoice, !modeAvailable('slot_available') && s.deliveryChoiceLocked, { backgroundColor: effectiveDeliveryType === 'slot' ? C.slotOnBg : C.card, borderColor: effectiveDeliveryType === 'slot' ? C.teal : C.line }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Text style={{ fontSize: 18 }}>⏰</Text>
-              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: deliveryType === 'slot' ? C.mint : C.white }]}>Every 2 hrs Slot</Text>
+              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: effectiveDeliveryType === 'slot' ? C.mint : C.white }]}>Every 2 hrs Slot</Text>
             </View>
-            <Text style={s.deliveryChoiceCopy}>10 AM to 10 PM</Text>
+            <Text style={s.deliveryChoiceCopy}>{modeAvailable('slot_available') ? '10 AM to 10 PM' : 'Unavailable in this zone'}</Text>
           </Pressable>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable
-            onPress={() => { setDeliveryType('same_day'); setDeliverySlot('Same Day Delivery'); }}
-            style={[s.deliveryChoice, { backgroundColor: deliveryType === 'same_day' ? C.slotOnBg : C.card, borderColor: deliveryType === 'same_day' ? C.teal : C.line }]}
+            disabled={!modeAvailable('same_day_available')}
+            onPress={() => setDeliveryMode('same_day', modeAvailable('same_day_available'))}
+            style={[s.deliveryChoice, !modeAvailable('same_day_available') && s.deliveryChoiceLocked, { backgroundColor: effectiveDeliveryType === 'same_day' ? C.slotOnBg : C.card, borderColor: effectiveDeliveryType === 'same_day' ? C.teal : C.line }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Text style={{ fontSize: 18 }}>🚚</Text>
-              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: deliveryType === 'same_day' ? C.mint : C.white }]}>Same Day</Text>
+              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: effectiveDeliveryType === 'same_day' ? C.mint : C.white }]}>Same Day</Text>
             </View>
-            <Text style={s.deliveryChoiceCopy}>Delivered by today</Text>
+            <Text style={s.deliveryChoiceCopy}>{modeAvailable('same_day_available') ? 'Delivered by today' : 'Unavailable in this zone'}</Text>
           </Pressable>
           <Pressable
-            onPress={() => { setDeliveryType('next_day'); setDeliverySlot('Next Day Delivery'); }}
-            style={[s.deliveryChoice, { backgroundColor: deliveryType === 'next_day' ? C.slotOnBg : C.card, borderColor: deliveryType === 'next_day' ? C.teal : C.line }]}
+            disabled={!modeAvailable('next_day_available')}
+            onPress={() => setDeliveryMode('next_day', modeAvailable('next_day_available'))}
+            style={[s.deliveryChoice, !modeAvailable('next_day_available') && s.deliveryChoiceLocked, { backgroundColor: effectiveDeliveryType === 'next_day' ? C.slotOnBg : C.card, borderColor: effectiveDeliveryType === 'next_day' ? C.teal : C.line }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Text style={{ fontSize: 18 }}>📦</Text>
-              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: deliveryType === 'next_day' ? C.mint : C.white }]}>Next Day</Text>
+              <Text style={[s.rowTitle, s.deliveryChoiceTitle, { color: effectiveDeliveryType === 'next_day' ? C.mint : C.white }]}>Next Day</Text>
             </View>
-            <Text style={s.deliveryChoiceCopy}>Delivered tomorrow</Text>
+            <Text style={s.deliveryChoiceCopy}>{modeAvailable('next_day_available') ? 'Delivered tomorrow' : 'Unavailable in this zone'}</Text>
           </Pressable>
         </View>
       </View>
-      {deliveryType === 'slot' && (
+      {effectiveDeliveryType === 'slot' && (
         <View style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Choose a 2-hour delivery slot (10 AM - 10 PM):</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -1896,11 +1934,11 @@ export function CustomerApp() {
                   paddingVertical: 7,
                   borderRadius: 8,
                   borderWidth: 1,
-                  backgroundColor: deliverySlot === slot ? C.slotOnBg : C.card,
-                  borderColor: deliverySlot === slot ? C.teal : C.line,
+                  backgroundColor: effectiveDeliverySlot === slot ? C.slotOnBg : C.card,
+                  borderColor: effectiveDeliverySlot === slot ? C.teal : C.line,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: deliverySlot === slot ? '700' : '500', color: deliverySlot === slot ? C.mint : C.white }}>{slot}</Text>
+                <Text style={{ fontSize: 12, fontWeight: effectiveDeliverySlot === slot ? '700' : '500', color: effectiveDeliverySlot === slot ? C.mint : C.white }}>{slot}</Text>
               </Pressable>
             ))}
           </View>
@@ -1908,6 +1946,7 @@ export function CustomerApp() {
       )}
       <Text style={s.checkoutAddressTitle}>Delivery address</Text><TextInput value={addressText} onChangeText={setAddressText} placeholder="House, street, area, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton(busy ? 'Placing order…' : `Place order · ${money(checkoutTotal())}`, () => void placeOrder())}</View>}
   </>;
+  };
 
   const accountScreen = () => <>
     {profile ? <View style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>{(profile.name || 'A').slice(0, 1).toUpperCase()}</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>{profile.name}</Text><Text style={s.profileSub}>{profile.phone}</Text></View><Pressable onPress={() => { void clearLoginToken(); setProfile(null); setNotice('You signed out.'); }}><Text style={s.signout}>Sign out</Text></Pressable></View> : <Pressable onPress={() => go('Sign in')} style={s.profileBanner}><View style={s.avatar}><Text style={s.avatarText}>S</Text></View><View style={{ flex: 1 }}><Text style={s.profileName}>Sign in to Amedix</Text><Image source={require('../../assets/WhatsApp Image 2026-10-08 at 2.16.07 PM.jpeg')} contentFit="contain" style={{ width: 70, height: 30, marginTop: 3 }} accessibilityLabel="AIMEDIX healthcare diagnostics" /></View><Text style={s.arrow}>›</Text></Pressable>}
@@ -1930,7 +1969,7 @@ export function CustomerApp() {
 
 
 
-  const servicesScreen = (isLab: boolean) => {
+  const servicesScreen = (isLab: boolean, isDiagnostics = false) => {
     const items = isLab ? labs : doctors;
     const labCategoryValue = (item: any) => item.category ?? item.category_name ?? item.test_category ?? item.modality ?? item.service_category ?? '';
     const labSubcategoryValue = (item: any) => String(item.subcategory ?? item.subcategory_name ?? item.test_name ?? '').trim();
@@ -1953,20 +1992,29 @@ export function CustomerApp() {
       const inferred = normalizeLabCategory(text);
       return ['Xray', 'CT', 'MRI', 'USG', 'ECG'].includes(inferred) ? inferred : 'Other tests';
     };
-    const labCategories = ['Xray', 'CT', 'MRI', 'USG', 'ECG', ...Array.from(new Set(labs.map((item) => labItemCategory(item)).filter((category) => !['Xray', 'CT', 'MRI', 'USG', 'ECG', 'Other tests'].includes(category))))];
-    const categoryItemsToShow = !isLab || labCategoryFilter === 'All' ? items : items.filter((item) => labItemCategory(item) === labCategoryFilter);
+    const isLaboratoryTest = (item: any) => {
+      const category = String(labCategoryValue(item)).toLowerCase();
+      const details = `${item.name || ''} ${item.description || ''} ${item.subcategory || ''}`.toLowerCase();
+      return /blood|urine|patholog|hematolog|biochem|microbiolog|lab(?:oratory)? test/.test(category)
+        || /blood test|urine test|pathology|complete blood count|\bcbc\b|thyroid profile|\bhba1c\b|lipid profile|vitamin [bd]|liver function|kidney function|urine routine|culture test/.test(details);
+    };
+    const labCategories = isDiagnostics
+      ? ['Lab Tests', 'Xray', 'CT', 'MRI', 'USG', 'ECG', ...Array.from(new Set(labs.map((item) => labItemCategory(item)).filter((category) => !['Xray', 'CT', 'MRI', 'USG', 'ECG', 'Other tests', 'Blood Tests', 'Urine Tests', 'Pathology'].includes(category))))]
+      : Array.from(new Set(labs.filter(isLaboratoryTest).map((item) => labItemCategory(item))));
+    const eligibleItems = isDiagnostics ? items : items.filter(isLaboratoryTest);
+    const categoryItemsToShow = !isLab ? items : labCategoryFilter === 'All' ? eligibleItems : eligibleItems.filter((item) => isDiagnostics && labCategoryFilter === 'Lab Tests' ? isLaboratoryTest(item) : labItemCategory(item) === labCategoryFilter);
     const labSubcategories = Array.from(new Set(categoryItemsToShow.map(labSubcategoryValue).filter(Boolean)));
     const visibleItems = isLab && labSubcategoryFilter !== 'All' ? categoryItemsToShow.filter((item) => labSubcategoryValue(item) === labSubcategoryFilter) : categoryItemsToShow;
     const groupedItems = isLab ? Object.entries(visibleItems.reduce((groups: Record<string, any[]>, item: any) => {
-      const category = labItemCategory(item);
+      const category = isDiagnostics && isLaboratoryTest(item) ? 'Lab Tests' : labItemCategory(item);
       (groups[category] ??= []).push(item);
       return groups;
     }, {})) : [['', items] as [string, any[]]];
-    const renderItem = (item: any) => <View key={item.id} style={s.serviceListing}>{!isLab && item.image_full_url ? <Image source={{ uri: item.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : null}<Text style={s.serviceListingTag}>{isLab ? (cleanProviderName(item.provider_name) || 'Diagnostic lab') : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text>{isLab && labSubcategoryValue(item) ? <Text style={s.serviceSub}>{labSubcategoryValue(item)}</Text> : null}<Text style={s.serviceSub}>{isLab ? (item.description && !/demo|sample|fictional/i.test(item.description) ? item.description : item.preparation || 'Convenient diagnostic testing with home collection.') : `${item.qualification || 'Qualified clinician'}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description && !/demo|sample|fictional/i.test(item.description) ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Lab hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book Now', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id) }); go('Booking'); })}</View></View>;
-    return <>{isLab ? <><Text style={s.sectionTitle}>Diagnostics & lab categories</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{['All', ...labCategories].map((category) => <Pressable key={category} onPress={() => { setLabCategoryFilter(category); setLabSubcategoryFilter('All'); }} style={[s.reportButton, labCategoryFilter === category && s.reportButtonOn]}><Text style={s.reportButtonText}>{category}</Text></Pressable>)}</ScrollView>{labSubcategories.length ? <><Text style={s.fieldLabel}>Subcategories</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{['All', ...labSubcategories].map((subcategory) => <Pressable key={subcategory} onPress={() => setLabSubcategoryFilter(subcategory)} style={[s.reportButton, labSubcategoryFilter === subcategory && s.reportButtonOn]}><Text style={s.reportButtonText}>{subcategory}</Text></Pressable>)}</ScrollView></> : null}</> : null}{visibleItems.length ? groupedItems.flatMap(([category, categoryItems]) => [
+    const renderItem = (item: any) => <View key={item.id} style={s.serviceListing}>{!isLab && item.image_full_url ? <Image source={{ uri: item.image_full_url }} contentFit="cover" style={s.categoryCardImage} /> : null}<Text style={s.serviceListingTag}>{isLab ? (cleanProviderName(item.provider_name) || (isLaboratoryTest(item) ? 'Laboratory' : 'Diagnostics provider')) : (item.speciality || 'Doctor')}</Text><Text style={s.serviceListingName}>{isLab ? item.name : `Dr. ${item.name}`}</Text>{isLab && labSubcategoryValue(item) ? <Text style={s.serviceSub}>{labSubcategoryValue(item)}</Text> : null}<Text style={s.serviceSub}>{isLab ? (item.description && !/demo|sample|fictional/i.test(item.description) ? item.description : item.preparation || 'Service details available when booking.') : `${item.qualification || 'Qualified clinician'}`}</Text>{!isLab && [item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).length > 0 ? <Text style={s.serviceSub}>{[item.address, item.address_line, item.landmark, item.city, item.state, item.pincode].filter(Boolean).join(', ')}</Text> : null}{!isLab && item.availability_text ? <Text style={s.serviceSub}>Availability · {item.availability_text}</Text> : null}{!isLab && item.opening_hours ? <Text style={s.serviceSub}>Clinic hours · {item.opening_hours}</Text> : null}{!isLab && item.description && !/demo|sample|fictional/i.test(item.description) ? <Text style={s.serviceSub}>{item.description}</Text> : null}{!isLab && item.latitude && item.longitude ? <Pressable onPress={() => void Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}><Text style={s.seeAll}>View clinic location ↗</Text></Pressable> : null}{isLab && !!item.provider_opening_hours ? <Text style={s.serviceSub}>Provider hours · {item.provider_opening_hours}</Text> : null}{isLab && Number(item.report_hours) > 0 ? <Text style={s.serviceSub}>Report in {item.report_hours} hrs</Text> : null}<View style={s.productFooter}><Text style={s.productPrice}>{money(isLab ? item.price : item.consultation_fee)}</Text>{primaryButton('Book Now', () => { setAppointment({ kind: isLab ? 'lab' : 'doctor', id: Number(item.id), isLabTest: isLaboratoryTest(item) }); go('Booking'); })}</View></View>;
+    return <>{isLab ? <><Text style={s.sectionTitle}>{isDiagnostics ? 'Diagnostics & lab categories' : 'Laboratory tests'}</Text><Text style={s.serviceSub}>{isDiagnostics ? 'Lab tests, imaging and other diagnostic services' : 'Blood, urine and pathology investigations'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{['All', ...labCategories].map((category) => <Pressable key={category} onPress={() => { setLabCategoryFilter(category); setLabSubcategoryFilter('All'); }} style={[s.reportButton, labCategoryFilter === category && s.reportButtonOn]}><Text style={s.reportButtonText}>{category}</Text></Pressable>)}</ScrollView>{labSubcategories.length ? <><Text style={s.fieldLabel}>Subcategories</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>{['All', ...labSubcategories].map((subcategory) => <Pressable key={subcategory} onPress={() => setLabSubcategoryFilter(subcategory)} style={[s.reportButton, labSubcategoryFilter === subcategory && s.reportButtonOn]}><Text style={s.reportButtonText}>{subcategory}</Text></Pressable>)}</ScrollView></> : null}</> : null}{visibleItems.length ? groupedItems.flatMap(([category, categoryItems]) => [
       ...(category ? [<Text key={`lab-category-${category}`} style={s.sectionTitle}>{category}</Text>] : []),
       ...categoryItems.map(renderItem),
-    ]) : empty(isLab ? '⚗' : '⚕', isLab ? 'No tests available in this category' : 'No doctors available', isLab ? 'Lab tests added to this category will appear here.' : 'New services will appear here soon.')}</>;
+    ]) : empty(isLab ? '⚗' : '⚕', isLab ? (isDiagnostics ? 'No diagnostic services available' : 'No laboratory tests available') : 'No doctors available', isLab ? (isDiagnostics ? 'Lab tests, imaging and diagnostic services added by providers will appear here.' : 'Blood, urine and pathology tests added by labs will appear here.') : 'New services will appear here soon.')}</>;
   };
 
   const loginScreen = () => <View style={s.formCard}><Text style={s.formTitle}>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</Text><Text style={s.formCopy}>Use your phone number to continue securely.</Text>{authMode === 'register' && <TextInput value={authName} onChangeText={setAuthName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} />}
@@ -1983,7 +2031,7 @@ export function CustomerApp() {
     return hour * 60 + minute > now.getHours() * 60 + now.getMinutes();
   });
   const bookingScreen = () => <View style={s.formCard}>
-    <Text style={s.formTitle}>{appointment?.kind === 'lab' ? 'Book a lab test' : 'Request a consultation'}</Text>
+    <Text style={s.formTitle}>{appointment?.kind === 'lab' ? appointment.isLabTest ? 'Book a lab test' : 'Book a diagnostic service' : 'Request a consultation'}</Text>
     <Text style={s.formCopy}>Choose online or visit the clinic. The provider will confirm your appointment.</Text>
     {!profile ? <><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Your full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Phone number" keyboardType="phone-pad" placeholderTextColor={C.muted} style={s.input} /></> : null}
     {appointment?.kind === 'doctor' ? <><Text style={s.fieldLabel}>Consultation type</Text><View style={s.reportActions}><Pressable onPress={() => setConsultationMode('online')} style={[s.reportButton, consultationMode === 'online' && s.reportButtonOn]}><Text style={s.reportButtonText}>Online</Text></Pressable><Pressable onPress={() => setConsultationMode('clinic')} style={[s.reportButton, consultationMode === 'clinic' && s.reportButtonOn]}><Text style={s.reportButtonText}>Offline · Clinic</Text></Pressable></View><TextInput value={consultationReason} onChangeText={setConsultationReason} placeholder="What would you like to discuss? (optional)" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} /></> : null}
@@ -2004,6 +2052,7 @@ export function CustomerApp() {
     if (page === 'Sign in') return loginScreen();
     if (page === 'Booking') return bookingScreen();
     if (page === 'Lab Tests') return servicesScreen(true);
+    if (page === 'Diagnostics') return servicesScreen(true, true);
     if (page === 'Consult a Doctor') return servicesScreen(false);
     if (page === 'Delivery addresses') return <>{addresses.map((item) => <View key={item.id} style={s.accountRow}><Text style={s.rowIcon}>⌖</Text><View style={{ flex: 1 }}><Text style={s.rowTitle}>{item.label || 'Address'}</Text><Text style={s.rowSub}>{item.address}, {item.city} {item.pincode}</Text></View>{!!item.is_default && <Text style={s.seeAll}>Default</Text>}</View>)}<View style={s.formCard}><Text style={s.fieldLabel}>Add a delivery address</Text><TextInput value={addressText} onChangeText={setAddressText} placeholder="House, street, area, city, PIN code" placeholderTextColor={C.muted} multiline style={[s.input, s.addressInput]} />{primaryButton('Save address', () => void saveAddress())}</View></>;
     if (page === 'Personal details') return <View style={s.formCard}><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Full name" placeholderTextColor={C.muted} style={s.input} /><TextInput value={authEmail || profile?.email || ''} onChangeText={setAuthEmail} placeholder="Email address" placeholderTextColor={C.muted} keyboardType="email-address" style={s.input} /><Text style={s.rowSub}>Phone number · {profile?.phone ?? customerPhone}</Text>{primaryButton('Save changes', () => void saveProfile())}</View>;
@@ -2306,12 +2355,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   benefitRupee: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#FFFFFF',
-    backgroundColor: '#F31555',
-    overflow: 'hidden',
-    borderRadius: 9,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    color: '#078f82',
   },
 
   benefitOfferText: {
@@ -2442,10 +2486,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   prescriptionArtwork: { width: 72, height: 72, borderRadius: 36, overflow: 'hidden', backgroundColor: '#c9f0eb' },
   prescriptionArtworkImage: { width: '100%', height: '100%' },
   prescriptionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
-  prescriptionUploadButton: { minHeight: 32, minWidth: 98, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, borderRadius: 18, borderWidth: 1, borderColor: '#078f82' },
-  prescriptionUploadText: { color: '#078f82', fontSize: 8, fontWeight: '900' },
-  prescriptionWhatsAppButton: { minHeight: 32, minWidth: 98, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, borderRadius: 18, backgroundColor: '#078f82' },
-  prescriptionWhatsAppText: { color: '#ffffff', fontSize: 8, fontWeight: '900' },
+  prescriptionUploadButton: { minHeight: 40, minWidth: 136, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10, borderRadius: 18, borderWidth: 1, borderColor: '#078f82' },
+  prescriptionUploadText: { color: '#078f82', fontSize: 10, fontWeight: '900' },
+  prescriptionWhatsAppButton: { minHeight: 40, minWidth: 136, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10, borderRadius: 18, backgroundColor: '#078f82' },
+  prescriptionWhatsAppText: { color: '#ffffff', fontSize: 10, fontWeight: '900' },
   demoOnlyBadge: {
     color: C.demoBadge,
     fontSize: 10,
@@ -2468,9 +2512,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     marginHorizontal: -14
   },
   promoImage: {
-    ...StyleSheet.absoluteFill,
-    width: '100%',
-    height: '100%'
+    ...StyleSheet.absoluteFill
   },
   promoShade: {
     ...StyleSheet.absoluteFill,
@@ -2767,7 +2809,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   strike: {
     textDecorationLine: 'line-through'
   },
-  deliveryChoice: { flex: 1, minWidth: 0, minHeight: 88, justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
+  deliveryChoice: { flex: 1, minWidth: 0, minHeight: 88, justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 }, deliveryChoiceLocked: { opacity: 0.46 },
   deliveryChoiceTitle: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 16, includeFontPadding: false, fontWeight: '700' },
   deliveryChoiceCopy: { color: C.muted, fontSize: 10, lineHeight: 13, marginLeft: 25 },
   addButton: {
