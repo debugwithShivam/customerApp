@@ -100,6 +100,66 @@ export const DEMO_CATEGORIES: DemoCategory[] = [
       { id: -705, category_id: -7, name: 'Homeopathic Ointments & Gels', image_full_url: photo('photo-1608248543803-ba4f8c70ae0b', 220) },
     ],
   },
+  {
+    id: -8,
+    name: 'Xray',
+    image_full_url: photo('photo-1584308666744-24d5c474f2ae', 220),
+    subcategories: [
+      { id: -801, category_id: -8, name: 'Chest Xray', image_full_url: photo('photo-1584308666744-24d5c474f2ae', 220) },
+      { id: -802, category_id: -8, name: 'Abdominal Xray', image_full_url: photo('photo-1550572017-edd951b55104', 220) },
+      { id: -803, category_id: -8, name: 'Bone Xray', image_full_url: photo('photo-1584634731339-252c581abfc5', 220) },
+      { id: -804, category_id: -8, name: 'Skeletal Xray', image_full_url: photo('photo-1505751172876-fa1923c5c528', 220) },
+      { id: -805, category_id: -8, name: 'Dental Xray', image_full_url: photo('photo-1516627145497-ae6968895b74', 220) },
+    ],
+  },
+  {
+    id: -9,
+    name: 'CT Scan',
+    image_full_url: photo('photo-1584634731339-252c581abfc5', 220),
+    subcategories: [
+      { id: -901, category_id: -9, name: 'Head / Brain CT', image_full_url: photo('photo-1584634731339-252c581abfc5', 220) },
+      { id: -902, category_id: -9, name: 'Abdominal CT', image_full_url: photo('photo-1550572017-edd951b55104', 220) },
+      { id: -903, category_id: -9, name: 'Pelvis CT', image_full_url: photo('photo-1603398938378-e54eab446dde', 220) },
+      { id: -904, category_id: -9, name: 'Chest CT', image_full_url: photo('photo-1584308666744-24d5c474f2ae', 220) },
+      { id: -905, category_id: -9, name: 'Whole Body CT', image_full_url: photo('photo-1505751172876-fa1923c5c528', 220) },
+    ],
+  },
+  {
+    id: -10,
+    name: 'MRI',
+    image_full_url: photo('photo-1505751172876-fa1923c5c528', 220),
+    subcategories: [
+      { id: -1001, category_id: -10, name: 'Brain / Spine MRI', image_full_url: photo('photo-1505751172876-fa1923c5c528', 220) },
+      { id: -1002, category_id: -10, name: 'Joint MRI', image_full_url: photo('photo-1615485290382-441e4d049cb5', 220) },
+      { id: -1003, category_id: -10, name: 'Abdominal MRI', image_full_url: photo('photo-1550572017-edd951b55104', 220) },
+      { id: -1004, category_id: -10, name: 'Cardiac MRI', image_full_url: photo('photo-1584634731339-252c581abfc5', 220) },
+      { id: -1005, category_id: -10, name: 'Pelvis MRI', image_full_url: photo('photo-1603398938378-e54eab446dde', 220) },
+    ],
+  },
+  {
+    id: -11,
+    name: 'USG',
+    image_full_url: photo('photo-1615485290382-441e4d049cb5', 220),
+    subcategories: [
+      { id: -1101, category_id: -11, name: 'Full Body / Abdomen USG', image_full_url: photo('photo-1615485290382-441e4d049cb5', 220) },
+      { id: -1102, category_id: -11, name: 'Obstetrics USG', image_full_url: photo('photo-1604917877934-07d8d248d396', 220) },
+      { id: -1103, category_id: -11, name: 'Cardiac / Echo USG', image_full_url: photo('photo-1505751172876-fa1923c5c528', 220) },
+      { id: -1104, category_id: -11, name: 'Musculoskeletal USG', image_full_url: photo('photo-1584308666744-24d5c474f2ae', 220) },
+      { id: -1105, category_id: -11, name: 'Vascular USG', image_full_url: photo('photo-1584634731339-252c581abfc5', 220) },
+    ],
+  },
+  {
+    id: -12,
+    name: 'ECG',
+    image_full_url: photo('photo-1584634731339-252c581abfc5', 220),
+    subcategories: [
+      { id: -1201, category_id: -12, name: 'Resting ECG', image_full_url: photo('photo-1505751172876-fa1923c5c528', 220) },
+      { id: -1202, category_id: -12, name: 'Stress ECG / TMT', image_full_url: photo('photo-1584017911766-d451b3d0e843', 220) },
+      { id: -1203, category_id: -12, name: '24-Hour Holter ECG', image_full_url: photo('photo-1584308666744-24d5c474f2ae', 220) },
+      { id: -1204, category_id: -12, name: 'Event ECG Monitoring', image_full_url: photo('photo-1550572017-edd951b55104', 220) },
+      { id: -1205, category_id: -12, name: 'Exercise ECG', image_full_url: photo('photo-1615485290382-441e4d049cb5', 220) },
+    ],
+  },
 ];
 
 const product = (
@@ -128,6 +188,34 @@ const product = (
     description,
     stock: 15 + (id % 20),
     medicine_type: category_id === -1 && subcategory_id === -103 ? 'prescription_required' : 'otc',
+    is_demo: true,
+    thumbnail_full_url: photo(image),
+  };
+};
+
+const diagnosticService = (
+  id: number,
+  name: string,
+  category_id: number,
+  subcategory_id: number,
+  price: number,
+  image: string,
+  description: string,
+) => {
+  const cat = DEMO_CATEGORIES.find((item) => item.id === category_id);
+  const sub = cat?.subcategories.find((item) => item.id === subcategory_id);
+  return {
+    id: -100 - id,
+    name,
+    category_id,
+    category_name: cat?.name ?? 'Diagnostics',
+    subcategory_id,
+    subcategory_name: sub?.name ?? 'General',
+    price,
+    discount_price: null,
+    unit: 'per session',
+    description,
+    stock: 0,
     is_demo: true,
     thumbnail_full_url: photo(image),
   };
@@ -218,6 +306,41 @@ export const DEMO_PRODUCTS = [
   product(69, 'Dr. Reckeweg R1 Drops (Inflammation)', -7, -704, 270, 'Bottle of 22 ml', 'photo-1550572017-edd951b55104', 'German homeopathic drops for localized inflammatory affections.', 240),
   product(70, 'SBL Cantharis Ointment', -7, -705, 75, 'Tube of 25 g', 'photo-1608248543803-ba4f8c70ae0b', 'Topical homeopathic ointment for burns, scalds, and blistering.', 65),
   product(71, 'Schwabe Topi Heal Cream', -7, -705, 110, 'Tube of 25 g', 'photo-1608248543803-ba4f8c70ae0b', 'Gentle homeopathic cream for skin healing and minor wounds.', 95),
+
+  // Category -8: Xray
+  diagnosticService(72, 'Digital Chest Xray (PA view)', -8, -801, 450, 'photo-1584308666744-24d5c474f2ae', 'Digital posterior-anterior chest Xray with same-day digital report. Includes contrast evaluation where indicated.'),
+  diagnosticService(73, 'Digital Abdominal Xray', -8, -802, 350, 'photo-1550572017-edd951b55104', 'Full abdominal survey to check for obstruction, constipation or foreign bodies.'),
+  diagnosticService(74, 'Digital Bone Xray - Lower Limb', -8, -803, 400, 'photo-1584634731339-252c581abfc5', 'Single-view Xray of hip, knee or ankle with digital report.'),
+  diagnosticService(75, 'Digital Skeletal Xray - Spine', -8, -804, 450, 'photo-1505751172876-fa1923c5c528', 'Spine series Xray to assess alignment, fractures or disc space narrowing.'),
+  diagnosticService(76, 'Digital Dental Xray - Periapical', -8, -805, 200, 'photo-1516627145497-ae6968895b74', 'Intra-oral periapical radiograph for root and tooth assessment.'),
+
+  // Category -9: CT Scan
+  diagnosticService(77, 'Non-Contrast Brain CT', -9, -901, 1200, 'photo-1584634731339-252c581abfc5', 'Non-contrast enhanced CT scan of the brain for stroke, bleed or mass evaluation.'),
+  diagnosticService(78, 'Contrast Enhanced Abdominal CT', -9, -902, 1800, 'photo-1550572017-edd951b55104', 'Triphasic contrast study of the abdomen including liver, kidneys and pancreas.'),
+  diagnosticService(79, 'Pelvis CT with Contrast', -9, -903, 1500, 'photo-1603398938378-e54eab446dde', 'CT pelvis with oral and IV contrast for gynacological, urological and GI assessment.'),
+  diagnosticService(80, 'High-Resolution Chest CT', -9, -904, 1400, 'photo-1584308666744-24d5c474f2ae', 'HRCT chest for interstitial lung disease, fibrosis or early parenchymal disease.'),
+  diagnosticService(81, 'Whole Body CT Screening', -9, -905, 5000, 'photo-1505751172876-fa1923c5c528', 'Comprehensive whole-body screening CT to detect lesions, metastases or anomalies.'),
+
+  // Category -10: MRI
+  diagnosticService(82, 'Brain and Spine MRI', -10, -1001, 2800, 'photo-1505751172876-fa1923c5c528', 'Multiplanar MRI of the brain and entire spine with and without contrast.'),
+  diagnosticService(83, 'Joint MRI (Knee/Shoulder/Hip)', -10, -1002, 2200, 'photo-1615485290382-441e4d049cb5', 'Dedicated MRI of a single joint including all key sequences.'),
+  diagnosticService(84, 'Abdominal MRI', -10, -1003, 2500, 'photo-1550572017-edd951b55104', 'MRI abdomen with diffusion-weighted imaging plus contrast where required.'),
+  diagnosticService(85, 'Cardiac MRI', -10, -1004, 4500, 'photo-1584634731339-252c581abfc5', 'Comprehensive cardiac MRI for function, viability, perfusion and stress studies.'),
+  diagnosticService(86, 'Pelvis MRI', -10, -1005, 2400, 'photo-1603398938378-e54eab446dde', 'Multiplanar pelvis MRI for gynecological, prostate or soft tissue assessment.'),
+
+  // Category -11: USG
+  diagnosticService(87, 'Full Body / Abdomen USG', -11, -1101, 700, 'photo-1615485290382-441e4d049cb5', 'Comprehensive abdomen and whole-body ultrasound including organ sizes and any masses.'),
+  diagnosticService(88, 'First Trimester Obstetrics USG', -11, -1102, 600, 'photo-1604917877934-07d8d248d396', 'Dating and viability scan with fetal heart rate assessment.'),
+  diagnosticService(89, 'Two-Dimensional Echo Cardiogram', -11, -1103, 800, 'photo-1505751172876-fa1923c5c528', '2D echocardiogram with colour Doppler for structural and functional heart assessment.'),
+  diagnosticService(90, 'Musculoskeletal USG', -11, -1104, 500, 'photo-1584308666744-24d5c474f2ae', 'Targeted musculoskeletal ultrasound of joints, tendons or soft tissue swelling.'),
+  diagnosticService(91, 'Vascular Doppler Study', -11, -1105, 900, 'photo-1584634731339-252c581abfc5', 'Arterial or venous duplex study with spectral and colour Doppler for limb perfusion.'),
+
+  // Category -12: ECG
+  diagnosticService(92, '12-Lead Resting ECG', -12, -1201, 300, 'photo-1505751172876-fa1923c5c528', 'Standard 12-lead ECG recorded at rest for rhythm and cardiac assessment.'),
+  diagnosticService(93, 'Exercise Stress ECG (TMT)', -12, -1202, 700, 'photo-1584017911766-d451b3d0e843', 'Symptom-limited treadmill test with ECG monitoring and BP tracking.'),
+  diagnosticService(94, '24-Hour Holter ECG Monitoring', -12, -1203, 1000, 'photo-1584308666744-24d5c474f2ae', 'Continuous ambulatory ECG monitoring for 24 hours with event correlation analysis.'),
+  diagnosticService(95, 'Event ECG Recorder (30-day)', -12, -1204, 1500, 'photo-1550572017-edd951b55104', 'Patient-activated event monitor for intermittent palpitations over up to 30 days.'),
+  diagnosticService(96, 'Exercise ECG with Recovery', -12, -1205, 650, 'photo-1615485290382-441e4d049cb5', 'Standard Bruce protocol exercise treadmill test with immediate recovery monitoring.'),
 ];
 
 export const DEMO_BANNERS = [
@@ -233,8 +356,13 @@ export const DEMO_DOCTORS = [
 ];
 
 export const DEMO_LABS = [
-  { id: -301, name: 'Complete Blood Count (CBC)', provider_name: 'Amedix Demo Diagnostics', description: 'Routine blood panel with sample collection at home.', price: 399, report_hours: 12 },
-  { id: -302, name: 'Thyroid Profile (T3, T4, TSH)', provider_name: 'Amedix Demo Diagnostics', description: 'Thyroid function screening. Sample test listing.', price: 599, report_hours: 24 },
-  { id: -303, name: 'Vitamin D Test', provider_name: 'Amedix Demo Diagnostics', description: 'Vitamin D level screening. Sample test listing.', price: 799, report_hours: 24 },
-  { id: -304, name: 'Lipid Profile', provider_name: 'Amedix Demo Diagnostics', description: 'Cholesterol and triglyceride screening. Sample test listing.', price: 499, report_hours: 18 },
+  { id: -301, name: 'Complete Blood Count (CBC)', provider_name: 'Amedix Demo Diagnostics', category: 'Blood Tests', subcategory: 'Complete Blood Count', description: 'Routine blood panel with sample collection at home.', price: 399, report_hours: 12 },
+  { id: -302, name: 'Thyroid Profile (T3, T4, TSH)', provider_name: 'Amedix Demo Diagnostics', category: 'Blood Tests', subcategory: 'Thyroid Profile', description: 'Thyroid function screening. Sample test listing.', price: 599, report_hours: 24 },
+  { id: -303, name: 'Vitamin D Test', provider_name: 'Amedix Demo Diagnostics', category: 'Blood Tests', subcategory: 'Vitamin Tests', description: 'Vitamin D level screening. Sample test listing.', price: 799, report_hours: 24 },
+  { id: -304, name: 'Lipid Profile', provider_name: 'Amedix Demo Diagnostics', category: 'Blood Tests', subcategory: 'Lipid Profile', description: 'Cholesterol and triglyceride screening. Sample test listing.', price: 499, report_hours: 18 },
+  { id: -305, name: 'Chest X-Ray', provider_name: 'Amedix Demo Diagnostics', category: 'Xray', subcategory: 'Chest X-Ray', description: 'Sample diagnostic imaging listing for app preview.', price: 499, report_hours: 24 },
+  { id: -306, name: 'CT Scan', provider_name: 'Amedix Demo Diagnostics', category: 'CT', subcategory: 'CT Scan', description: 'Sample diagnostic imaging listing for app preview.', price: 2499, report_hours: 24 },
+  { id: -307, name: 'MRI Scan', provider_name: 'Amedix Demo Diagnostics', category: 'MRI', subcategory: 'MRI Scan', description: 'Sample diagnostic imaging listing for app preview.', price: 4999, report_hours: 48 },
+  { id: -308, name: 'Ultrasound (USG)', provider_name: 'Amedix Demo Diagnostics', category: 'USG', subcategory: 'Ultrasound', description: 'Sample diagnostic imaging listing for app preview.', price: 999, report_hours: 24 },
+  { id: -309, name: 'ECG', provider_name: 'Amedix Demo Diagnostics', category: 'ECG', subcategory: 'Electrocardiogram', description: 'Sample cardiac diagnostic listing for app preview.', price: 299, report_hours: 12 },
 ];
