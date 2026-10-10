@@ -26,6 +26,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow AIMEDIX MEDS to use your location to find nearby delivery areas."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",

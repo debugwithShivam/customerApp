@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -374,6 +375,31 @@ export function CustomerApp() {
   const back = () => { setPage(history.at(-1) ?? 'Home'); setHistory((items) => items.slice(0, -1)); setNotice(''); };
   const apiCall = async <T,>(path: string, options?: { method?: string; body?: unknown }) => api<T>(path, options);
 
+  const detectCurrentLocation = async () => {
+    setLocationBusy(true);
+    setLocationNotice('Finding your current location…');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setLocationNotice('Location permission is off. Allow it in your phone settings, or search for an address manually.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const choice: LocationChoice = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        address: `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`,
+      };
+      setSelectedLocation(choice);
+      setLocationQuery(choice.address);
+      setLocationNotice('Current location detected. Confirm it to check delivery coverage.');
+    } catch (error) {
+      setLocationNotice(error instanceof Error ? error.message : 'Could not detect your location. Search for an address or place a map pin.');
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
   const openAreaPicker = () => {
     const currentZone = zones.find((zone) => zone.id === zoneId);
     if (!selectedLocation && currentZone?.latitude && currentZone?.longitude) {
@@ -388,6 +414,7 @@ export function CustomerApp() {
     setLocationQuery(selectedLocation?.address ?? '');
     setLocationNotice('');
     setAreaPickerOpen(true);
+    void detectCurrentLocation();
   };
 
   const loadPrescriptionCentre = useCallback(async () => {
@@ -2164,6 +2191,7 @@ export function CustomerApp() {
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.areaPickerContent}>
             <TextInput value={locationQuery} onChangeText={(value) => { setLocationQuery(value); setLocationChoices([]); }} onSubmitEditing={() => void searchLocations()} placeholder="Address, area, landmark, or PIN code" placeholderTextColor={C.muted} style={s.input} returnKeyType="search" />
+            {primaryButton(locationBusy ? 'Finding current location…' : 'Use current location', () => void detectCurrentLocation())}
             {primaryButton(locationBusy ? 'Searching...' : 'Search address', () => void searchLocations())}
             {locationChoices.map((choice, index) => <Pressable key={index} onPress={() => { setSelectedLocation(choice); setLocationQuery(choice.address); setLocationNotice('Address selected. Confirm it below.'); }} style={s.areaPickerItem}><Text style={s.locationPin}>Location</Text><Text style={[s.menuItemText, { flex: 1 }]}>{choice.address}</Text><Text style={s.arrow}>{selectedLocation?.latitude === choice.latitude && selectedLocation?.longitude === choice.longitude ? 'Selected' : '>'}</Text></Pressable>)}
             <LocationMap center={selectedLocation ?? (() => { const z = zones.find((item) => item.id === zoneId); return z?.latitude && z.longitude ? { latitude: Number(z.latitude), longitude: Number(z.longitude) } : { latitude: 28.6139, longitude: 77.2090 }; })()} selected={selectedLocation} onSelect={selectMapPin} />
